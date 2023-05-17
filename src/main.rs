@@ -1,4 +1,4 @@
-use diesel::{Connection, RunQueryDsl, insert_into, ExpressionMethods};
+use diesel::{Connection, RunQueryDsl, insert_into, ExpressionMethods, Queryable};
 use iced::theme::{self, Theme};
 use iced::widget::{
     button, checkbox, column, container, horizontal_rule, progress_bar, radio,
@@ -19,6 +19,13 @@ fn run_migration(conn:  &mut impl MigrationHarness<diesel::pg::Pg>) {
     }
 }
 
+// users table
+#[derive(Queryable, Debug)]
+struct User {
+    id: i32,
+    name: String,
+}
+
 pub fn main() -> iced::Result {
     // get postgres connection
     let mut conn = diesel::pg::PgConnection::establish("postgres://postgres:root@localhost:5432/diesel_demo")
@@ -32,6 +39,13 @@ pub fn main() -> iced::Result {
         .values(users::name.eq("John Doe"))
         .execute(&mut conn)
         .expect("Error inserting user");
+
+    // get value from db
+    let users = users::table
+        .load::<User>(&mut conn)
+        .expect("Error loading users");
+
+    println!("Users: {:?}", users);
 
 
     Styling::run(Settings::default())
