@@ -7,6 +7,7 @@ use iced::widget::{
 };
 use iced::{Alignment, Color, Element, Length, Sandbox, Settings};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+
 mod schema;
 use schema::users;
 
@@ -21,6 +22,7 @@ fn run_migration(conn:  &mut impl MigrationHarness<diesel::pg::Pg>) {
 
 // users table
 #[derive(Queryable, Debug)]
+#[allow(dead_code)]
 struct User {
     id: i32,
     name: String,
