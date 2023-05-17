@@ -1,12 +1,8 @@
-use diesel::table;
+// @generated automatically by Diesel CLI.
 
-
-
-
-
-table! {
-    users {
-        id -> Integer,
-        name -> Text,
+diesel::table! {
+    users (id) {
+        id -> Int4,
+        name -> Varchar,
     }
 }
