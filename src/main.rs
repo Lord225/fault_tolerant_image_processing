@@ -1,19 +1,18 @@
-use diesel::{Connection, RunQueryDsl, insert_into, ExpressionMethods, Queryable};
+use diesel::{insert_into, Connection, ExpressionMethods, Queryable, RunQueryDsl};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use dotenvy;
 use iced::theme::{self, Theme};
 use iced::widget::{
-    button, checkbox, column, container, horizontal_rule, progress_bar, radio,
-    row, scrollable, slider, text, text_input, toggler, vertical_rule,
-    vertical_space,
+    button, checkbox, column, container, horizontal_rule, progress_bar, radio, row, scrollable,
+    slider, text, text_input, toggler, vertical_rule, vertical_space,
 };
 use iced::{Alignment, Color, Element, Length, Sandbox, Settings};
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel::prelude::*;
 
 mod schema;
-use schema::users;
-
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
-fn run_migration(conn:  &mut impl MigrationHarness<diesel::pg::Pg>) {
+fn run_migration(conn: &mut impl MigrationHarness<diesel::pg::Pg>) {
     match conn.run_pending_migrations(MIGRATIONS) {
         Ok(_) => println!("Migrations applied successfully!"),
         Err(e) => println!("Error applying migrations: {}", e),
@@ -29,26 +28,38 @@ struct User {
 }
 
 pub fn main() -> iced::Result {
+    // init .env
+    dotenvy::dotenv().ok();
+    
     // get postgres connection
-    let mut conn = diesel::pg::PgConnection::establish("postgres://postgres:root@localhost:5432/diesel_demo")
-        .expect("Error connecting to postgres");
+    let mut conn =
+        diesel::pg::PgConnection::establish(&std::env::var("DATABASE_URL").unwrap())
+            .expect("Error connecting to postgres");
 
     // run migrations
     run_migration(&mut conn);
+    use schema::users::dsl::*;
 
     // insert new user to db
-    insert_into(users::table)
-        .values(users::name.eq("John Doe"))
+    insert_into(users)
+        .values(name.eq("John Doe"))
         .execute(&mut conn)
         .expect("Error inserting user");
 
     // get value from db
-    let users = users::table
+    let all_users = users
         .load::<User>(&mut conn)
         .expect("Error loading users");
 
-    println!("Users: {:?}", users);
+    // select users with name "John Doe"
+    let jhon_users = users
+        .filter(name.eq("John Doe"))
+        .load::<User>(&mut conn)
+        .expect("Error loading users");
 
+    println!("Users: {:?}", jhon_users);
+
+    println!("Users: {:?}", all_users);
 
     Styling::run(Settings::default())
 }
@@ -114,24 +125,23 @@ impl Sandbox for Styling {
     }
 
     fn view(&self) -> Element<Message> {
-        let choose_theme =
-            [ThemeType::Light, ThemeType::Dark, ThemeType::Custom]
-                .iter()
-                .fold(
-                    column![text("Choose a theme:")].spacing(10),
-                    |column, theme| {
-                        column.push(radio(
-                            format!("{theme:?}"),
-                            *theme,
-                            Some(match self.theme {
-                                Theme::Light => ThemeType::Light,
-                                Theme::Dark => ThemeType::Dark,
-                                Theme::Custom { .. } => ThemeType::Custom,
-                            }),
-                            Message::ThemeChanged,
-                        ))
-                    },
-                );
+        let choose_theme = [ThemeType::Light, ThemeType::Dark, ThemeType::Custom]
+            .iter()
+            .fold(
+                column![text("Choose a theme:")].spacing(10),
+                |column, theme| {
+                    column.push(radio(
+                        format!("{theme:?}"),
+                        *theme,
+                        Some(match self.theme {
+                            Theme::Light => ThemeType::Light,
+                            Theme::Dark => ThemeType::Dark,
+                            Theme::Custom { .. } => ThemeType::Custom,
+                        }),
+                        Message::ThemeChanged,
+                    ))
+                },
+            );
 
         let text_input = text_input("Type something...", &self.input_value)
             .on_input(Message::InputChanged)
@@ -142,22 +152,16 @@ impl Sandbox for Styling {
             .padding(10)
             .on_press(Message::ButtonPressed);
 
-        let slider =
-            slider(0.0..=100.0, self.slider_value, Message::SliderChanged);
+        let slider = slider(0.0..=100.0, self.slider_value, Message::SliderChanged);
 
         let progress_bar = progress_bar(0.0..=100.0, self.slider_value);
 
         let scrollable = scrollable(
-            column!["Scroll me!", vertical_space(800), "You did it!"]
-                .width(Length::Fill),
+            column!["Scroll me!", vertical_space(800), "You did it!"].width(Length::Fill),
         )
         .height(100);
 
-        let checkbox = checkbox(
-            "Check me!",
-            self.checkbox_value,
-            Message::CheckboxToggled,
-        );
+        let checkbox = checkbox("Check me!", self.checkbox_value, Message::CheckboxToggled);
 
         let toggler = toggler(
             String::from("Toggle me!"),
