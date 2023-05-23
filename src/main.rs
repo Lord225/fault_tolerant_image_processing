@@ -1,4 +1,3 @@
-use diesel::{insert_into, Connection, ExpressionMethods, Queryable, RunQueryDsl};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use dotenvy;
 use iced::theme::{self, Theme};
@@ -7,9 +6,12 @@ use iced::widget::{
     slider, text, text_input, toggler, vertical_rule, vertical_space,
 };
 use iced::{Alignment, Color, Element, Length, Sandbox, Settings};
-use diesel::prelude::*;
+use diesel::{prelude::*, insert_into};
 
+mod workers;
 mod schema;
+mod journal;
+
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 fn run_migration(conn: &mut impl MigrationHarness<diesel::pg::Pg>) {
@@ -50,14 +52,6 @@ pub fn main() -> iced::Result {
     let all_users = users
         .load::<User>(&mut conn)
         .expect("Error loading users");
-
-    // select users with name "John Doe"
-    let jhon_users = users
-        .filter(name.eq("John Doe"))
-        .load::<User>(&mut conn)
-        .expect("Error loading users");
-
-    println!("Users: {:?}", jhon_users);
 
     println!("Users: {:?}", all_users);
 
