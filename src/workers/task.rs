@@ -16,10 +16,9 @@ pub enum Job {
     },
 }
 
+
 #[derive(Debug, Clone)]
 pub struct Task {
     job: Job,
     data: RgbImage,
 }
-
-

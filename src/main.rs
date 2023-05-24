@@ -39,7 +39,6 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     // insert users
     conn.execute("INSERT INTO users (name) VALUES ($1)", &[&"Steven"])?;
     
-
     // load users
     let mut users = Vec::new();
     for row in &conn.query("SELECT id, name FROM users", &[]).unwrap() {
@@ -50,16 +49,10 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         users.push(user);
     }
 
-
-
     // print users
     println!("users: {:?}", users);
 
-    
-
-
     Styling::run(Settings::default())?;
-
 
     Ok(())
 }

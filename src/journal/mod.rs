@@ -1,8 +1,3 @@
-
-
-
-
-
 pub struct Journal {
 
 }
