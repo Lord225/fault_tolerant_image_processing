@@ -1,4 +1,5 @@
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use std::error::Error;
+
 use dotenvy;
 use iced::theme::{self, Theme};
 use iced::widget::{
@@ -6,56 +7,61 @@ use iced::widget::{
     slider, text, text_input, toggler, vertical_rule, vertical_space,
 };
 use iced::{Alignment, Color, Element, Length, Sandbox, Settings};
-use diesel::{prelude::*, insert_into};
+use postgres::{Client, NoTls};
 
 mod workers;
 mod schema;
 mod journal;
 
-pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
-
-fn run_migration(conn: &mut impl MigrationHarness<diesel::pg::Pg>) {
-    match conn.run_pending_migrations(MIGRATIONS) {
-        Ok(_) => println!("Migrations applied successfully!"),
-        Err(e) => println!("Error applying migrations: {}", e),
-    }
-}
 
 // users table
-#[derive(Queryable, Debug)]
+#[derive(Debug)]
 #[allow(dead_code)]
 struct User {
     id: i32,
     name: String,
 }
 
-pub fn main() -> iced::Result {
+pub fn main() -> Result<(), Box<dyn Error>> {
     // init .env
     dotenvy::dotenv().ok();
     
-    // get postgres connection
-    let mut conn =
-        diesel::pg::PgConnection::establish(&std::env::var("DATABASE_URL").unwrap())
-            .expect("Error connecting to postgres");
+    // init db
+    let mut conn = Client::connect(&std::env::var("DATABASE_URL").unwrap(), NoTls).unwrap();
 
-    // run migrations
-    run_migration(&mut conn);
-    use schema::users::dsl::*;
+    conn.batch_execute("
+        CREATE TABLE IF NOT EXISTS users (
+            id              SERIAL PRIMARY KEY,
+            name            VARCHAR NOT NULL
+        )
+    ")?;
 
-    // insert new user to db
-    insert_into(users)
-        .values(name.eq("John Doe"))
-        .execute(&mut conn)
-        .expect("Error inserting user");
+    // insert users
+    conn.execute("INSERT INTO users (name) VALUES ($1)", &[&"Steven"])?;
+    
 
-    // get value from db
-    let all_users = users
-        .load::<User>(&mut conn)
-        .expect("Error loading users");
+    // load users
+    let mut users = Vec::new();
+    for row in &conn.query("SELECT id, name FROM users", &[]).unwrap() {
+        let user = User {
+            id: row.get(0),
+            name: row.get(1),
+        };
+        users.push(user);
+    }
 
-    println!("Users: {:?}", all_users);
 
-    Styling::run(Settings::default())
+
+    // print users
+    println!("users: {:?}", users);
+
+    
+
+
+    Styling::run(Settings::default())?;
+
+
+    Ok(())
 }
 
 #[derive(Default)]
