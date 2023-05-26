@@ -8,46 +8,53 @@ use iced::widget::{
     slider, text, text_input, toggler, vertical_rule, vertical_space,
 };
 use iced::{Alignment, Color, Element, Length, Sandbox, Settings};
-use postgres::{Client, NoTls};
+
+use clap::Parser;
 
 mod workers;
 mod database;
 mod journal;
 
-
-// users table
-#[derive(Debug)]
-#[allow(dead_code)]
-struct User {
-    id: i32,
-    name: String,
+#[derive(Parser, Debug)]
+struct Args {
+    /// Reset database
+    #[clap(short, long, default_value_t=false )]
+    reset: bool,
 }
 
 pub fn main() -> Result<(), Box<dyn Error>> {
     // init .env
     dotenvy::dotenv().ok();
-    
-    let mut db = database::common::open_connection()?;
 
+    // init cli
+    let args = Args::parse();
+
+    // reset db
+    if args.reset {
+        database::common::reset_database()?;
+    }
+
+    let mut db = database::common::open_connection()?;
 
     database::migration::run_migrations(&mut db);
 
+
     db.insert_new_task_tree(
     &InsertableTask {
-            data: "Main Task".to_string(),
+            data: Some("Main Task".to_string()),
             status: database::schema::Status::Pending,
             params: workers::task::Job::Blur { size: 0.0 },
 
             parent_tasks: vec![
                 InsertableTask {
-                    data: "Subtask 1".to_string(),
+                    data: Some("Subtask 1".to_string()),
                     status: database::schema::Status::Pending,
                     params: workers::task::Job::Blur { size: 0.0 },
 
                     parent_tasks: vec![
                         InsertableTask {
-                            data: "Subtask for subtask 1".to_string(),
-                            status: database::schema::Status::Pending,
+                            data: Some("Subtask for subtask 1".to_string()),
+                            status: database::schema::Status::Completed,
                             params: workers::task::Job::Blur { size: 0.0 },
         
                             parent_tasks: vec![]
@@ -55,7 +62,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                     ]
                 }, 
                 InsertableTask {
-                    data: "Subtask 2".to_string(),
+                    data: Some("Subtask 2".to_string()),
                     status: database::schema::Status::Pending,
                     params: workers::task::Job::Blur { size: 0.0 },
 
@@ -68,6 +75,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     
     
     println!("{:?}", db.get_task_by_id(1)?);
+
+    println!("{:?}", db.get_runnable_tasks());
 
     
     

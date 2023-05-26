@@ -14,7 +14,7 @@ pub enum Job {
     },
     Brightness{
         size: f32,
-    },
+    }
 }
 
 

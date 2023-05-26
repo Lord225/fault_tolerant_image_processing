@@ -7,11 +7,25 @@ pub struct Database {
     pub conn: Client,
 }
 
-
 pub fn open_connection() -> Result<Database, Error> {
     let conn = Client::connect(&std::env::var("DATABASE_URL").unwrap_or("postgres://postgres:root@localhost:5432/images".into()), NoTls)?;
     
     Ok(Database { conn  })
+}
+
+pub fn reset_database() -> Result<(), Error> {
+    // connect to postgres
+    let mut conn = Client::connect("postgres://postgres:root@localhost:5432/postgres", NoTls)?;
+
+    // drop database
+    conn.execute("DROP DATABASE IF EXISTS images", &[])?;
+
+    // create database
+    conn.execute("CREATE DATABASE images", &[])?;
+
+    println!("Database reseted successfully");
+
+    Ok(())
 }
 
 impl Deref for Database {

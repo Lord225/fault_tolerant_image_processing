@@ -1,14 +1,13 @@
-use std::{error::Error, time::SystemTime};
-use postgres::error::DbError;
-use postgres_types::Timestamp;
+use std::{time::SystemTime};
+
 use crate::{workers::task::Job, 
             database::{schema, 
                        common::{Database, ErrorType}}};
 
-
+#[derive(Debug)]
 pub struct Task {
     id: i64,
-    parent_tasks: Vec<Task>,
+    parent_tasks: Option<Vec<Task>>,
     status: schema::Status,
     timestamp: i64,
     data: String,
@@ -18,7 +17,7 @@ pub struct Task {
 pub struct InsertableTask {
     pub parent_tasks: Vec<InsertableTask>,
     pub status: schema::Status,
-    pub data: String,
+    pub data: Option<String>,
     pub params: Job,
 }
 
@@ -52,6 +51,7 @@ impl Database {
         }
 
         let timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as i64;
+        
         let mut tx = self.conn.transaction()?;
         insert_task(&mut tx, task, timestamp)?;
         tx.commit()?;
@@ -64,7 +64,7 @@ impl Database {
         const QUERY: &str = "SELECT id, task_id, status, timestamp, data, params FROM tasks WHERE id = $1";
 
         let row = self.query_one(QUERY, &[&id])?;
-        
+
         Ok(
             schema::TaskSchema {
                 id: row.try_get(0)?,
@@ -77,6 +77,19 @@ impl Database {
         )
     }
 
+    pub fn get_runnable_tasks(&mut self) -> Result<Vec<Task>, ErrorType> {
+        const QUERRY: &str = "SELECT * FROM tasks t LEFT JOIN parents p ON t.task_id = p.task_id WHERE (t.status = 'pending' AND (p.parent_id IS NULL OR p.parent_id IN (SELECT task_id FROM tasks WHERE status = 'completed')))";
+
+
+        let rows = self.query(QUERRY, &[])?;
+        
+        for row in rows {
+            println!("{:?}", row);
+        }
+
+        Ok(Vec::new())
+    } 
+    
     pub fn is_task_pending(&mut self, task_id: i64) -> Result<bool, ErrorType> {
         const QUERY: &str = "SELECT status FROM tasks WHERE task_id = $1 ORDER BY timestamp DESC LIMIT 1";
 
@@ -87,5 +100,5 @@ impl Database {
         )
     }
 
-
+    
 }
