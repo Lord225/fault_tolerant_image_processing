@@ -30,7 +30,7 @@ impl<Worker: ImageWorker> WorkerWrapper<Worker> {
 
     fn process(&mut self) {
         loop {
-            let task = self.channel.recv().unwrap();
+            // let task = self.channel.recv().unwrap();
 
             
             

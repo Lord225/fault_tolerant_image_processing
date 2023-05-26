@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use database::repositories::task::InsertableTask;
 use dotenvy;
 use iced::theme::{self, Theme};
 use iced::widget::{
@@ -10,7 +11,7 @@ use iced::{Alignment, Color, Element, Length, Sandbox, Settings};
 use postgres::{Client, NoTls};
 
 mod workers;
-mod schema;
+mod database;
 mod journal;
 
 
@@ -26,32 +27,50 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     // init .env
     dotenvy::dotenv().ok();
     
-    // init db
-    let mut conn = Client::connect(&std::env::var("DATABASE_URL").unwrap(), NoTls).unwrap();
+    let mut db = database::common::open_connection()?;
 
-    conn.batch_execute("
-        CREATE TABLE IF NOT EXISTS users (
-            id              SERIAL PRIMARY KEY,
-            name            VARCHAR NOT NULL
-        )
-    ")?;
 
-    // insert users
-    conn.execute("INSERT INTO users (name) VALUES ($1)", &[&"Steven"])?;
+    database::migration::run_migrations(&mut db);
+
+    db.insert_new_task_tree(
+    &InsertableTask {
+            data: "Main Task".to_string(),
+            status: database::schema::Status::Pending,
+            params: workers::task::Job::Blur { size: 0.0 },
+
+            parent_tasks: vec![
+                InsertableTask {
+                    data: "Subtask 1".to_string(),
+                    status: database::schema::Status::Pending,
+                    params: workers::task::Job::Blur { size: 0.0 },
+
+                    parent_tasks: vec![
+                        InsertableTask {
+                            data: "Subtask for subtask 1".to_string(),
+                            status: database::schema::Status::Pending,
+                            params: workers::task::Job::Blur { size: 0.0 },
+        
+                            parent_tasks: vec![]
+                        },
+                    ]
+                }, 
+                InsertableTask {
+                    data: "Subtask 2".to_string(),
+                    status: database::schema::Status::Pending,
+                    params: workers::task::Job::Blur { size: 0.0 },
+
+                    parent_tasks: vec![]
+                }
+            ]
+        }
+    )?;
     
-    // load users
-    let mut users = Vec::new();
-    for row in &conn.query("SELECT id, name FROM users", &[]).unwrap() {
-        let user = User {
-            id: row.get(0),
-            name: row.get(1),
-        };
-        users.push(user);
-    }
+    
+    
+    println!("{:?}", db.get_task_by_id(1)?);
 
-    // print users
-    println!("users: {:?}", users);
-
+    
+    
     Styling::run(Settings::default())?;
 
     Ok(())
