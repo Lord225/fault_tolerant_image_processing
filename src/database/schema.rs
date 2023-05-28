@@ -1,4 +1,3 @@
-use postgres::types::Timestamp;
 use postgres_derive::{FromSql, ToSql};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, FromSql, ToSql)]

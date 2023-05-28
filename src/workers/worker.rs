@@ -1,5 +1,5 @@
-use super::task::Task;
-use std::sync::mpsc;
+use super::task::SubTask;
+use std::sync::mpsc::{self, Sender};
 use crate::journal::Journal;
 
 // this is worker mod,
@@ -13,28 +13,40 @@ pub trait ImageWorker {
     fn process(&mut self);
 }
 
-struct WorkerWrapper<Worker: ImageWorker> {
-    channel: mpsc::Receiver<Task>,
-    journal: Journal,
-    worker: Worker,
+struct WorkerThread<Worker: ImageWorker+Send> {
+    thread: Option<std::thread::JoinHandle<()>>,
+
+    phantom: std::marker::PhantomData<Worker>,
 }
 
-impl<Worker: ImageWorker> WorkerWrapper<Worker> {
-    fn new(channel: mpsc::Receiver<Task>, journal: Journal, worker: Worker) -> Self {
+impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
+    pub fn new() -> Self {
         Self {
-            channel,
-            journal,
-            worker,
+            thread: None,
+            phantom: std::marker::PhantomData,
         }
     }
 
-    fn process(&mut self) {
+    pub fn start(&mut self, worker: Worker, journal: Journal) -> Sender<SubTask> {
+        let (tx, rx) = mpsc::channel();
+
+        let thread = std::thread::spawn(move || {
+            Self::thread_body(worker, journal, rx);
+        });
+
+        self.thread = Some(thread);
+
+        tx
+    }
+
+    fn thread_body(mut worker: Worker, mut journal: Journal, channel: mpsc::Receiver<SubTask>) {
         loop {
-            // let task = self.channel.recv().unwrap();
+            let task = channel.recv().unwrap();
 
-            
-            
+            worker.process();
+
+            // sleep
+            std::thread::sleep(std::time::Duration::from_secs(1));
         }
-
     }
 }

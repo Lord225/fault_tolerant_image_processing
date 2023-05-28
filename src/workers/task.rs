@@ -19,7 +19,7 @@ pub enum Job {
 
 
 #[derive(Debug, Clone)]
-pub struct Task {
+pub struct SubTask {
     job: Job,
     data: RgbImage,
 }

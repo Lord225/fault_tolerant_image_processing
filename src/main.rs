@@ -38,7 +38,6 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     database::migration::run_migrations(&mut db);
 
-
     db.insert_new_task_tree(
     &InsertableTask {
             data: Some("Main Task".to_string()),
@@ -71,6 +70,9 @@ pub fn main() -> Result<(), Box<dyn Error>> {
             ]
         }
     )?;
+
+
+
     
     
     

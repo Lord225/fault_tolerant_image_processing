@@ -80,7 +80,6 @@ impl Database {
     pub fn get_runnable_tasks(&mut self) -> Result<Vec<Task>, ErrorType> {
         const QUERRY: &str = "SELECT * FROM tasks t LEFT JOIN parents p ON t.task_id = p.task_id WHERE (t.status = 'pending' AND (p.parent_id IS NULL OR p.parent_id IN (SELECT task_id FROM tasks WHERE status = 'completed')))";
 
-
         let rows = self.query(QUERRY, &[])?;
         
         for row in rows {
@@ -88,7 +87,7 @@ impl Database {
         }
 
         Ok(Vec::new())
-    } 
+    }
     
     pub fn is_task_pending(&mut self, task_id: i64) -> Result<bool, ErrorType> {
         const QUERY: &str = "SELECT status FROM tasks WHERE task_id = $1 ORDER BY timestamp DESC LIMIT 1";
