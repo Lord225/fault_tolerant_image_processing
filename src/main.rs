@@ -1,7 +1,8 @@
 use std::error::Error;
-
-use database::repositories::task::InsertableTask;
+use database::repositories::task::InsertableTaskTree;
 use dotenvy;
+use clap::Parser;
+
 use iced::theme::{self, Theme};
 use iced::widget::{
     button, checkbox, column, container, horizontal_rule, progress_bar, radio, row, scrollable,
@@ -9,11 +10,11 @@ use iced::widget::{
 };
 use iced::{Alignment, Color, Element, Length, Sandbox, Settings};
 
-use clap::Parser;
-
-mod workers;
+mod processing;
 mod database;
 mod journal;
+
+use processing::job;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -39,31 +40,30 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     database::migration::run_migrations(&mut db);
 
     db.insert_new_task_tree(
-    &InsertableTask {
+    &InsertableTaskTree {
             data: Some("Main Task".to_string()),
             status: database::schema::Status::Pending,
-            params: workers::task::Job::Blur { size: 0.0 },
+            params: job::WorkerJob::Blur(job::BlurJob(0.0)),
 
             parent_tasks: vec![
-                InsertableTask {
+                InsertableTaskTree {
                     data: Some("Subtask 1".to_string()),
                     status: database::schema::Status::Pending,
-                    params: workers::task::Job::Blur { size: 0.0 },
-
+                    params: job::WorkerJob::Blur(job::BlurJob(0.0)),
                     parent_tasks: vec![
-                        InsertableTask {
+                        InsertableTaskTree {
                             data: Some("Subtask for subtask 1".to_string()),
                             status: database::schema::Status::Completed,
-                            params: workers::task::Job::Blur { size: 0.0 },
+                            params: job::WorkerJob::Blur(job::BlurJob(0.0)),
         
                             parent_tasks: vec![]
                         },
                     ]
                 }, 
-                InsertableTask {
+                InsertableTaskTree {
                     data: Some("Subtask 2".to_string()),
                     status: database::schema::Status::Pending,
-                    params: workers::task::Job::Blur { size: 0.0 },
+                    params: job::WorkerJob::Blur(job::BlurJob(0.0)),
 
                     parent_tasks: vec![]
                 }

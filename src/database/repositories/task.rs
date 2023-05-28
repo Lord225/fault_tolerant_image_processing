@@ -1,33 +1,32 @@
 use std::{time::SystemTime};
 
-use crate::{workers::task::Job, 
-            database::{schema, 
-                       common::{Database, ErrorType}}};
+use crate::{database::{schema, 
+                       common::{Database, ErrorType}}, processing::job::WorkerJob};
 
 #[derive(Debug)]
-pub struct Task {
+pub struct TaskTree {
     id: i64,
-    parent_tasks: Option<Vec<Task>>,
+    parent_tasks: Option<Vec<TaskTree>>,
     status: schema::Status,
     timestamp: i64,
     data: String,
-    params: Job,
+    params: WorkerJob,
 }
 
-pub struct InsertableTask {
-    pub parent_tasks: Vec<InsertableTask>,
+pub struct InsertableTaskTree {
+    pub parent_tasks: Vec<InsertableTaskTree>,
     pub status: schema::Status,
     pub data: Option<String>,
-    pub params: Job,
+    pub params: WorkerJob,
 }
 
 impl Database {
-    pub fn insert_new_task_tree(&mut self, task: &InsertableTask) -> Result<(), ErrorType> 
+    pub fn insert_new_task_tree(&mut self, task: &InsertableTaskTree) -> Result<(), ErrorType> 
     {
         const QUERY: &str = "INSERT INTO tasks (task_id, status, timestamp, data, params) VALUES ($1, $2, $3, $4, $5)";
         const QUERY2: &str = "INSERT INTO parents (task_id, parent_id) VALUES ($1, $2)";
 
-        fn insert_task(tx: &mut postgres::Transaction, task: &InsertableTask, timestamp: i64) -> Result<i64, ErrorType> {
+        fn insert_task(tx: &mut postgres::Transaction, task: &InsertableTaskTree, timestamp: i64) -> Result<i64, ErrorType> {
             // get next free task_id
             let task_id = tx.query_one("SELECT nextval('task_id_seq')", &[])?;
             let task_id: i64 = task_id.try_get(0)?;
@@ -77,7 +76,7 @@ impl Database {
         )
     }
 
-    pub fn get_runnable_tasks(&mut self) -> Result<Vec<Task>, ErrorType> {
+    pub fn get_runnable_tasks(&mut self) -> Result<Vec<TaskTree>, ErrorType> {
         const QUERRY: &str = "SELECT * FROM tasks t LEFT JOIN parents p ON t.task_id = p.task_id WHERE (t.status = 'pending' AND (p.parent_id IS NULL OR p.parent_id IN (SELECT task_id FROM tasks WHERE status = 'completed')))";
 
         let rows = self.query(QUERRY, &[])?;

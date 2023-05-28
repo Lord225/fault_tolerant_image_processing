@@ -1,15 +1,16 @@
-use super::task::SubTask;
+pub mod worker1;
+pub mod worker2;
+
+
 use std::sync::mpsc::{self, Sender};
 use crate::journal::Journal;
 
-// this is worker mod,
-// it contains an worker that 
-// will take data from channel
-// and process it
-// it is fault tolerant so it will save progress
-// into the database
+use super::task::Task;
+
 
 pub trait ImageWorker {
+    type WokerJob;
+
     fn process(&mut self);
 }
 
@@ -27,7 +28,7 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
         }
     }
 
-    pub fn start(&mut self, worker: Worker, journal: Journal) -> Sender<SubTask> {
+    pub fn start(&mut self, worker: Worker, journal: Journal) -> Sender<Task> {
         let (tx, rx) = mpsc::channel();
 
         let thread = std::thread::spawn(move || {
@@ -39,7 +40,7 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
         tx
     }
 
-    fn thread_body(mut worker: Worker, mut journal: Journal, channel: mpsc::Receiver<SubTask>) {
+    fn thread_body(mut worker: Worker, mut journal: Journal, channel: mpsc::Receiver<Task>) {
         loop {
             let task = channel.recv().unwrap();
 
