@@ -10,7 +10,7 @@ use super::task::Task;
 
 pub trait ImageWorker {
     type WokerJob;
-
+    
     fn process(&mut self);
 }
 
