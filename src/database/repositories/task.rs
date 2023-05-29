@@ -1,7 +1,10 @@
 use std::{time::SystemTime};
 
+use dotenvy::Error;
+use postgres::Transaction;
+
 use crate::{database::{schema, 
-                       common::{Database, ErrorType}}, processing::job::WorkerJob};
+                       common::{Database, ErrorType}}, processing::{job::WorkerJob, task::Task}};
 
 #[derive(Debug)]
 pub struct TaskTree {
@@ -76,10 +79,10 @@ impl Database {
         )
     }
 
-    pub fn get_runnable_tasks(&mut self) -> Result<Vec<TaskTree>, ErrorType> {
+    pub fn get_runnable_tasks(tx: &mut Transaction) -> Result<Vec<TaskTree>, ErrorType> {
         const QUERRY: &str = "SELECT * FROM tasks t LEFT JOIN parents p ON t.task_id = p.task_id WHERE (t.status = 'pending' AND (p.parent_id IS NULL OR p.parent_id IN (SELECT task_id FROM tasks WHERE status = 'completed')))";
 
-        let rows = self.query(QUERRY, &[])?;
+        let rows = tx.query(QUERRY, &[])?;
         
         for row in rows {
             println!("{:?}", row);
@@ -87,6 +90,7 @@ impl Database {
 
         Ok(Vec::new())
     }
+
     
     pub fn is_task_pending(&mut self, task_id: i64) -> Result<bool, ErrorType> {
         const QUERY: &str = "SELECT status FROM tasks WHERE task_id = $1 ORDER BY timestamp DESC LIMIT 1";
@@ -98,5 +102,33 @@ impl Database {
         )
     }
 
+    pub fn claim_runnable_tasks<JobType: From<WorkerJob> + Copy>(&mut self) -> Result<Vec<Task>, ErrorType> 
+    {
+        let mut tx =  self.transaction()?;
+
     
+        let tasks = Self::get_runnable_tasks(&mut tx)?;
+
+        // filter tasks that acre converted to jobType
+        let tasks = tasks
+        .iter()
+        .filter_map(|task| {
+            match JobType::try_from(task.params) {
+                Ok(job) => Some(TaskTree {
+                    id: task.id,
+                    parent_tasks: None,
+                    status: task.status,
+                    timestamp: task.timestamp,
+                    data: task.data.clone(),
+                    params: task.params,
+                }),
+                Err(_) => None,
+            }
+        })
+        .collect::<Vec<_>>();
+        
+            
+
+        Ok(Vec::new())
+    }
 }

@@ -1,11 +1,10 @@
-use crate::{database::common, processing::task::Task};
+use crate::{database::common, processing::{task::Task, job::WorkerJob}};
 
 
 
 pub struct Journal {
     db: common::Database,
 }
-
 
 
 impl Journal {
@@ -17,41 +16,5 @@ impl Journal {
         }
     }
 
-    ///
-    /// Should find all tasks that are pending & possible to execute and return one
-    pub fn search_pending_tasks(&mut self) -> Option<Task> {
-        None
-    }
-
-    ///
-    /// Should find all tasks that are failed and return one
-    pub fn search_for_failed_tasks(&mut self) -> Vec<Task> {
-        vec![]
-    }
-
-
-    ///
-    /// Should mark given task as running
-    pub fn mark_task_as_running(&mut self, task: &Task) {
-        
-    }
-
-    ///
-    /// Should mark given task as completed
-    pub fn mark_task_as_completed(&mut self, task: &Task) {
-        
-    }
-
-    ///
-    /// Should mark given task as failed
-    pub fn mark_task_as_failed(&mut self, task: &Task) {
-        
-    }
-
-
-    ///
-    /// Should find all tasks that are timeouted and mark them as failed
-    pub fn mark_timeouted_tasks(&mut self) {
-        
-    }    
+   
 }
