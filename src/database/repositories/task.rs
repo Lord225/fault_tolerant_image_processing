@@ -102,7 +102,7 @@ impl Database {
         )
     }
 
-    pub fn claim_runnable_tasks<JobType: From<WorkerJob> + Copy>(&mut self) -> Result<Vec<Task>, ErrorType> 
+    pub fn claim_runnable_tasks<JobType: TryFrom<WorkerJob> + Copy>(&mut self) -> Result<Vec<Task>, ErrorType> 
     {
         let mut tx =  self.transaction()?;
 

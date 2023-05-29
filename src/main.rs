@@ -16,6 +16,8 @@ mod journal;
 
 use processing::job;
 
+use crate::processing::worker::worker2::Worker2Job;
+
 #[derive(Parser, Debug)]
 struct Args {
     /// Reset database
@@ -71,14 +73,12 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         }
     )?;
 
-
-
+    db.claim_runnable_tasks::<Worker2Job>()?;
     
     
     
     println!("{:?}", db.get_task_by_id(1)?);
 
-    println!("{:?}", db.get_runnable_tasks());
 
     
     

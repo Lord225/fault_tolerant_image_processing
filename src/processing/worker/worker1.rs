@@ -3,6 +3,7 @@ use crate::processing::{worker::ImageWorker, job, job::WorkerJob};
 
 pub struct Worker1;
 
+#[derive(Debug, Clone, Copy)]
 
 pub enum Worker1Job {
     Resize(job::ResizeJob),

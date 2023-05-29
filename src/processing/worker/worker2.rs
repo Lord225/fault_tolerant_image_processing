@@ -3,6 +3,7 @@ use crate::processing::{worker::ImageWorker, job, job::WorkerJob};
 
 pub struct Worker2;
 
+#[derive(Debug, Clone, Copy)]
 
 pub enum Worker2Job {
     Blur(job::BlurJob),
