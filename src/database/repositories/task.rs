@@ -1,8 +1,5 @@
 use std::{time::SystemTime};
 
-use dotenvy::Error;
-use postgres::Transaction;
-
 use crate::{database::{schema, 
                        common::{Database, ErrorType}}, processing::{job::WorkerJob, task::Task}};
 
@@ -21,6 +18,25 @@ pub struct InsertableTaskTree {
     pub status: schema::Status,
     pub data: Option<String>,
     pub params: WorkerJob,
+}
+
+mod task_querry {
+    use postgres::Transaction;
+    use crate::database::common::ErrorType;
+    use super::TaskTree;
+
+    pub fn get_runnable_tasks(tx: &mut Transaction) -> Result<Vec<TaskTree>, ErrorType> {
+        const QUERRY: &str = "SELECT * FROM tasks t LEFT JOIN parents p ON t.task_id = p.task_id WHERE (t.status = 'pending' AND (p.parent_id IS NULL OR p.parent_id IN (SELECT task_id FROM tasks WHERE status = 'completed')))";
+
+        let rows = tx.query(QUERRY, &[])?;
+        
+        for row in rows {
+            println!("{:?}", row);
+        }
+
+        Ok(Vec::new())
+    }
+
 }
 
 impl Database {
@@ -79,16 +95,12 @@ impl Database {
         )
     }
 
-    pub fn get_runnable_tasks(tx: &mut Transaction) -> Result<Vec<TaskTree>, ErrorType> {
-        const QUERRY: &str = "SELECT * FROM tasks t LEFT JOIN parents p ON t.task_id = p.task_id WHERE (t.status = 'pending' AND (p.parent_id IS NULL OR p.parent_id IN (SELECT task_id FROM tasks WHERE status = 'completed')))";
+    pub fn get_runnable_tasks(&mut self) -> Result<Vec<TaskTree>, ErrorType> {
+        let mut tx = self.conn.transaction()?;
+        let tasks = task_querry::get_runnable_tasks(&mut tx)?;
+        tx.commit()?;
 
-        let rows = tx.query(QUERRY, &[])?;
-        
-        for row in rows {
-            println!("{:?}", row);
-        }
-
-        Ok(Vec::new())
+        Ok(tasks)
     }
 
     
@@ -107,7 +119,7 @@ impl Database {
         let mut tx =  self.transaction()?;
 
     
-        let tasks = Self::get_runnable_tasks(&mut tx)?;
+        let tasks = task_querry::get_runnable_tasks(&mut tx)?;
 
         // filter tasks that acre converted to jobType
         let tasks = tasks
