@@ -12,10 +12,10 @@ use iced::{Alignment, Color, Element, Length, Sandbox, Settings};
 
 mod processing;
 mod database;
-mod journal;
 
 use processing::job;
 
+use crate::processing::worker::worker1::Worker1Job;
 use crate::processing::worker::worker2::Worker2Job;
 
 #[derive(Parser, Debug)]
@@ -45,18 +45,18 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     &InsertableTaskTree {
             data: Some("Main Task".to_string()),
             status: database::schema::Status::Pending,
-            params: job::WorkerJob::Blur(job::BlurJob(0.0)),
+            params: job::WorkerJob::new_blur(0.0),
 
             parent_tasks: vec![
                 InsertableTaskTree {
                     data: Some("Subtask 1".to_string()),
                     status: database::schema::Status::Pending,
-                    params: job::WorkerJob::Blur(job::BlurJob(0.0)),
+                    params: job::WorkerJob::new_blur(0.0),
                     parent_tasks: vec![
                         InsertableTaskTree {
                             data: Some("Subtask for subtask 1".to_string()),
-                            status: database::schema::Status::Completed,
-                            params: job::WorkerJob::Blur(job::BlurJob(0.0)),
+                            status: database::schema::Status::Pending,
+                            params: job::WorkerJob::new_blur(0.0),
         
                             parent_tasks: vec![]
                         },
@@ -65,22 +65,19 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                 InsertableTaskTree {
                     data: Some("Subtask 2".to_string()),
                     status: database::schema::Status::Pending,
-                    params: job::WorkerJob::Blur(job::BlurJob(0.0)),
+                    params: job::WorkerJob::new_resize(100,100),
 
                     parent_tasks: vec![]
                 }
             ]
         }
     )?;
-
-    db.claim_runnable_tasks::<Worker2Job>()?;
     
+    dbg!(db.get_task_by_id(1)?);
+    dbg!(db.get_runnable_tasks()?);
     
-    
-    println!("{:?}", db.get_task_by_id(1)?);
-
-
-    
+    dbg!(db.claim_all_runnable_tasks::<Worker2Job>()?);
+    dbg!(db.claim_all_runnable_tasks::<Worker1Job>()?);
     
     Styling::run(Settings::default())?;
 

@@ -3,7 +3,7 @@ pub mod worker2;
 
 
 use std::sync::mpsc::{self, Sender};
-use crate::journal::Journal;
+use crate::database::common::Database;
 
 use super::task::Task;
 
@@ -28,7 +28,7 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
         }
     }
 
-    pub fn start(&mut self, worker: Worker, journal: Journal) -> Sender<Task> {
+    pub fn start(&mut self, worker: Worker, journal: Database) -> Sender<Task> {
         let (tx, rx) = mpsc::channel();
 
         let thread = std::thread::spawn(move || {
@@ -40,7 +40,7 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
         tx
     }
 
-    fn thread_body(mut worker: Worker, mut journal: Journal, channel: mpsc::Receiver<Task>) {
+    fn thread_body(mut worker: Worker, mut journal: Database, channel: mpsc::Receiver<Task>) {
         loop {
             let task = channel.recv().unwrap();
 
