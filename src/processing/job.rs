@@ -58,7 +58,7 @@ where
                     task.data
                         .as_ref()
                         .ok_or(task.task_id)
-                        .and_then(|data| load_image(&data).map_err(|_| task.task_id))
+                        .and_then(|data| load_image(data).map_err(|_| task.task_id))
                 })
                 .collect::<Vec<_>>()
         }
@@ -82,7 +82,7 @@ where
                 .collect())
         } else {
             Ok(Self {
-                task: task,
+                task,
                 data: input
                     .iter()
                     .map(|result| result.as_ref().unwrap().clone())

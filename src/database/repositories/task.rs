@@ -118,7 +118,7 @@ mod task_querry {
                 parent_tasks: None,
                 status,
                 timestamp,
-                data: data,
+                data,
                 params,
             });
         }

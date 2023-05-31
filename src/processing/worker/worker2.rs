@@ -26,7 +26,7 @@ impl TryFrom<job::JobType> for Worker2Job {
 impl ImageWorker for Worker2 {
     type WorkerJob = Worker2Job;
 
-    fn process(&mut self, job: job::Job<Self::WorkerJob>) -> Result<RgbImage, ()> {
+    fn process(&mut self, _job: job::Job<Self::WorkerJob>) -> Result<RgbImage, ()> {
         println!("Worker1::process()");
 
         todo!()

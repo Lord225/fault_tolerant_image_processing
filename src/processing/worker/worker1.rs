@@ -1,6 +1,6 @@
 use image::RgbImage;
 
-use crate::{processing::{worker::ImageWorker, job::{self, JobType}}, database::repositories::task::Task};
+use crate::{processing::{worker::ImageWorker, job::{self}}};
 
 
 pub struct Worker1;
@@ -29,12 +29,12 @@ impl ImageWorker for Worker1 {
 
     fn process(&mut self, job: job::Job<Self::WorkerJob>) -> Result<RgbImage, ()> {
         match job {
-            job::Job { task: Worker1Job::Resize(params), data } => {
+            job::Job { task: Worker1Job::Resize(_params), data } => {
                 println!("Worker1::process() Resize");
                 
                 Ok(data[0].clone())
             },
-            job::Job { task: Worker1Job::Crop(params), data } => {
+            job::Job { task: Worker1Job::Crop(_params), data } => {
                 println!("Worker1::process() Crop");
                 
                 Ok(data[0].clone())

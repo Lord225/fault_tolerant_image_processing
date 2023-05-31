@@ -78,7 +78,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let queue1 = worker1.start(Worker1::new(), database::common::open_connection()?);
 
     let mut worker2 = processing::worker::WorkerThread::<Worker1>::new();
-    let queue2 = worker2.start(Worker1::new(), database::common::open_connection()?);
+    let _queue2 = worker2.start(Worker1::new(), database::common::open_connection()?);
 
     println!("Workers created");
 
