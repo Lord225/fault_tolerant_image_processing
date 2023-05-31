@@ -1,5 +1,3 @@
-use postgres::Client;
-
 use super::common::Database;
 
 mod embedded {

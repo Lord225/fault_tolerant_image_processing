@@ -5,13 +5,10 @@ pub mod worker2;
 use std::sync::mpsc::{self, Sender};
 use crate::database::common::Database;
 
-use super::task::Task;
-
-
+use super::job::Job;
 pub trait ImageWorker {
     type WokerJob;
-    
-    fn process(&mut self);
+    fn process(&mut self, job: Job);
 }
 
 struct WorkerThread<Worker: ImageWorker+Send> {
@@ -28,7 +25,7 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
         }
     }
 
-    pub fn start(&mut self, worker: Worker, journal: Database) -> Sender<Task> {
+    pub fn start(&mut self, worker: Worker, journal: Database) -> Sender<Job> {
         let (tx, rx) = mpsc::channel();
 
         let thread = std::thread::spawn(move || {
@@ -40,11 +37,11 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
         tx
     }
 
-    fn thread_body(mut worker: Worker, mut journal: Database, channel: mpsc::Receiver<Task>) {
+    fn thread_body(mut worker: Worker, mut journal: Database, channel: mpsc::Receiver<Job>) {
         loop {
-            let task = channel.recv().unwrap();
+            let job = channel.recv().unwrap();
 
-            worker.process();
+            worker.process(job);
 
             // sleep
             std::thread::sleep(std::time::Duration::from_secs(1));

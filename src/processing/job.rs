@@ -11,7 +11,7 @@ pub struct BrightnessJob(f32);
 
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum WorkerJob{
+pub enum JobType{
     Resize(ResizeJob),
     Crop(CropJob),
     Blur(BlurJob),
@@ -19,13 +19,19 @@ pub enum WorkerJob{
 }
 
 
-impl WorkerJob {
-    pub fn new_resize(width:u32,height:u32 ) -> Self {
-        WorkerJob::Resize(ResizeJob(width,height))
+impl JobType {
+    pub fn new_resize(width:u32, height:u32) -> Self {
+        JobType::Resize(ResizeJob(width,height))
     }
     pub fn new_blur(blur:f32) -> Self {
-        WorkerJob::Blur(BlurJob(blur))
+        JobType::Blur(BlurJob(blur))
     }
+}
 
-    // TODO more constructors
+use image::RgbImage;
+
+#[derive(Debug, Clone)]
+pub struct Job {
+    job: JobType,
+    data: Vec<RgbImage>,
 }

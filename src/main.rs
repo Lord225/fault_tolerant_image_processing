@@ -45,18 +45,18 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     &InsertableTaskTree {
             data: Some("Main Task".to_string()),
             status: database::schema::Status::Pending,
-            params: job::WorkerJob::new_blur(0.0),
+            params: job::JobType::new_blur(0.0),
 
             parent_tasks: vec![
                 InsertableTaskTree {
                     data: Some("Subtask 1".to_string()),
                     status: database::schema::Status::Pending,
-                    params: job::WorkerJob::new_blur(0.0),
+                    params: job::JobType::new_blur(0.0),
                     parent_tasks: vec![
                         InsertableTaskTree {
                             data: Some("Subtask for subtask 1".to_string()),
                             status: database::schema::Status::Pending,
-                            params: job::WorkerJob::new_blur(0.0),
+                            params: job::JobType::new_blur(0.0),
         
                             parent_tasks: vec![]
                         },
@@ -65,7 +65,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                 InsertableTaskTree {
                     data: Some("Subtask 2".to_string()),
                     status: database::schema::Status::Pending,
-                    params: job::WorkerJob::new_resize(100,100),
+                    params: job::JobType::new_resize(100,100),
 
                     parent_tasks: vec![]
                 }

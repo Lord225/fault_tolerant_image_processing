@@ -1,4 +1,4 @@
-use crate::processing::{worker::ImageWorker, job, job::WorkerJob};
+use crate::processing::{worker::ImageWorker, job};
 
 
 pub struct Worker1;
@@ -10,12 +10,12 @@ pub enum Worker1Job {
     Crop(job::CropJob)
 }
 
-impl TryFrom<WorkerJob> for Worker1Job {
+impl TryFrom<job::JobType> for Worker1Job {
     type Error = ();
-    fn try_from(job: WorkerJob) -> Result<Self, ()> {
+    fn try_from(job: job::JobType) -> Result<Self, ()> {
         match job {
-            WorkerJob::Resize(job) => Ok(Worker1Job::Resize(job)),
-            WorkerJob::Crop(job) => Ok(Worker1Job::Crop(job)),
+            job::JobType::Resize(job) => Ok(Worker1Job::Resize(job)),
+            job::JobType::Crop(job) => Ok(Worker1Job::Crop(job)),
             _ => Err(()),
         }
     }
@@ -25,7 +25,7 @@ impl TryFrom<WorkerJob> for Worker1Job {
 impl ImageWorker for Worker1 {
     type WokerJob = Worker1Job;
 
-    fn process(&mut self) {
+    fn process(&mut self, job: job::Job) {
         println!("Worker1::process()");
     }
 }

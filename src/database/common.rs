@@ -50,6 +50,7 @@ pub enum ErrorType {
     DatabaseError(String),
     NotFound,
     SerializationError,
+    TaskNotRunnable(i64),
     Other,
 }
 
@@ -74,6 +75,7 @@ impl Display for ErrorType {
             ErrorType::NotFound => write!(f, "Entry Not Found"),
             ErrorType::Other => write!(f, "Other Logic Error"),
             ErrorType::SerializationError => write!(f, "Serialization Error"),
+            ErrorType::TaskNotRunnable(task_id) => write!(f, "Task {} is not runnable", task_id),
         }
     }
 }
