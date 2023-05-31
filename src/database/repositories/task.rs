@@ -59,6 +59,39 @@ mod task_querry {
         })
     }
 
+    pub fn get_parent_tasks(conn: &mut impl GenericClient, child_task_id: i64) -> Result<Vec<Task>, ErrorType> {
+        // get all parent tasks 
+        // it means: select all tasks that have parents with child_task_id is in parents table (sub select)
+        const QUERY: &str = "SELECT t.id, t.task_id, status, timestamp, data, params FROM tasks t WHERE t.task_id IN (SELECT parent_id FROM parents WHERE task_id = $1)";
+
+        let rows = conn.query(QUERY, &[&child_task_id])?;
+
+        let mut tasks = Vec::new();
+
+        for row in rows {
+            let id: i64 = row.try_get(0)?;
+            let task_id: i64 = row.try_get(1)?;
+            let status: schema::Status = row.try_get(2)?;
+            let timestamp: i64 = row.try_get(3)?;
+            let data: String = row.try_get(4)?;
+            let params: String = row.try_get(5)?;
+
+            let params: JobType = serde_json::from_str(&params)?;
+
+            tasks.push(Task {
+                id,
+                task_id,
+                parent_tasks: None,
+                status,
+                timestamp,
+                data,
+                params,
+            });
+        }
+
+        Ok(tasks)
+    }
+
     pub fn get_runnable_tasks(conn: &mut impl GenericClient) -> Result<Vec<Task>, ErrorType> {
         const QUERRY: &str = "SELECT t.id, t.task_id, status, timestamp, data, params FROM tasks t LEFT JOIN parents p ON t.task_id = p.task_id WHERE (t.status = 'pending' AND (p.parent_id IS NULL OR p.parent_id IN (SELECT task_id FROM tasks WHERE status = 'completed')))";
 
@@ -118,19 +151,19 @@ mod task_querry {
         use schema::Status;
         
         let task = get_last_task_state(conn, task_id)?;
-
+    
         match task.status {
             Status::Pending|Status::Failed => Ok(true),
             _ => Ok(false),
         }
     }
 
-    pub fn insert_status(conn: &mut impl GenericClient, task_id: i64, status: schema::Status) -> Result<(), ErrorType> {
-        const QUERY: &str = "INSERT INTO tasks (task_id, status, timestamp) VALUES ($1, $2, $3)";
+    pub fn insert_status(conn: &mut impl GenericClient, task: &Task, status: schema::Status) -> Result<(), ErrorType> {
+        const QUERY: &str = "INSERT INTO tasks (task_id, status, timestamp, data, params) VALUES ($1, $2, $3, $4, $5)";
 
         let timestamp = get_timestamp();
 
-        conn.execute(QUERY, &[&task_id, &status, &timestamp])?;
+        conn.execute(QUERY, &[&task.task_id, &status, &timestamp, &task.data, &serde_json::to_string(&task.params)?])?;
 
         Ok(())
     }
@@ -138,13 +171,31 @@ mod task_querry {
     pub fn mark_task_as_running(conn: &mut impl GenericClient, task: &Task) -> Result<(), ErrorType> {
         // check if task is runnable
         if is_task_not_completed(conn, task.task_id)? {
-            insert_status(conn, task.task_id, schema::Status::Running)?;
+            insert_status(conn, task, schema::Status::Running)?;
     
             Ok(())
         } else {
             Err(ErrorType::TaskNotRunnable(task.task_id))
         }
     }
+
+    pub fn mark_task_as_failed(conn: &mut impl GenericClient, task: &Task) -> Result<(), ErrorType> {
+        todo!()
+    }
+
+    pub fn mark_task_as_completed(conn: &mut impl GenericClient, task: &Task) -> Result<(), ErrorType> {
+        todo!()
+    }
+
+    pub fn search_for_timeouted(conn: &mut impl GenericClient, timeout: std::time::Duration) -> Result<Vec<Task>, ErrorType> {
+        todo!()
+    }
+
+    pub fn mark_timeouted_tasks_as_failed(conn: &mut impl GenericClient, tasks: Vec<Task>) -> Result<(), ErrorType> {
+        todo!()
+    }
+
+
 }
 
 impl Database {
@@ -209,7 +260,9 @@ impl Database {
         task_querry::get_last_task_state(&mut self.conn, task_id)
     }
 
-
+    pub fn get_parent_tasks(&mut self, task_id: i64) -> Result<Vec<Task>, ErrorType> {
+        task_querry::get_parent_tasks(&mut self.conn, task_id)
+    }
 
     pub fn claim_runnable_tasks<WorkerJobType: TryFrom<JobType> + Copy>(
         &mut self,
@@ -222,10 +275,13 @@ impl Database {
         let tasks = tasks
             .iter()
             .filter_map(|task| {
-                task.params.try_into().ok().map(|_: WorkerJobType| Task {
+                task.params
+                .try_into()
+                .ok()
+                .map(|_: WorkerJobType| Task {
                     id: task.id,
                     task_id: task.task_id,
-                    parent_tasks: None,
+                    parent_tasks: Some(task_querry::get_parent_tasks(&mut tx, task.task_id).unwrap()),
                     status: task.status,
                     timestamp: task.timestamp,
                     data: task.data.clone(),

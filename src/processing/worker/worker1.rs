@@ -1,3 +1,5 @@
+use image::RgbImage;
+
 use crate::processing::{worker::ImageWorker, job};
 
 
@@ -25,8 +27,10 @@ impl TryFrom<job::JobType> for Worker1Job {
 impl ImageWorker for Worker1 {
     type WokerJob = Worker1Job;
 
-    fn process(&mut self, job: job::Job) {
+    fn process(&mut self, job: job::Job) -> Result<RgbImage, ()> {
         println!("Worker1::process()");
+        
+        todo!()
     }
 }
 

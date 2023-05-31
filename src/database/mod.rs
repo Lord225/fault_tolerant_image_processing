@@ -84,6 +84,7 @@ mod tests {
         let tasks_for_worker_1 = db.claim_runnable_tasks::<Worker1Job>(Some(1));
         let tasks_for_worker_2 = db.claim_runnable_tasks::<Worker2Job>(Some(1));
 
-
+        assert!(tasks_for_worker_1.unwrap().first().unwrap().data == "Subtask 2".to_string());
+        assert!(tasks_for_worker_2.unwrap().first().unwrap().data == "Subtask 1".to_string());
     }
 }

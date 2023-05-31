@@ -1,10 +1,11 @@
+use image::RgbImage;
+
 use crate::processing::{worker::ImageWorker, job};
 
 
 pub struct Worker2;
 
 #[derive(Debug, Clone, Copy)]
-
 pub enum Worker2Job {
     Blur(job::BlurJob),
     Brightness(job::BrightnessJob),
@@ -25,8 +26,10 @@ impl TryFrom<job::JobType> for Worker2Job {
 impl ImageWorker for Worker2 {
     type WokerJob = Worker2Job;
 
-    fn process(&mut self, job: job::Job) {
+    fn process(&mut self, job: job::Job) -> Result<RgbImage, ()> {
         println!("Worker1::process()");
+
+        todo!()
     }
 }
 

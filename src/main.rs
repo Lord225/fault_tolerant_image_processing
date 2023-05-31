@@ -76,8 +76,13 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     dbg!(db.get_task_by_id(1)?);
     dbg!(db.get_runnable_tasks()?);
     
+    let task = db.get_task_by_id(1)?; // main
+
+    dbg!(db.get_parent_tasks(task.task_id)?); // subtask 1, subtask 2
+
     dbg!(db.claim_all_runnable_tasks::<Worker2Job>()?);
     dbg!(db.claim_all_runnable_tasks::<Worker1Job>()?);
+
     
     Styling::run(Settings::default())?;
 
