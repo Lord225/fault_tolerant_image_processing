@@ -8,14 +8,23 @@ use crate::{
     processing::job::JobType,
 };
 
+/// Represents a task or an Task tree.
+/// Task is a single unit of work marked with status, timestamp and data and params.
 #[derive(Debug)]
 pub struct Task {
+    /// Unique Id for task and state of the task.
     id: i64,
+    /// Unique Id of task
     pub task_id: i64,
+    /// Parent tasks of this task. If None then it is undefined if task has parents or not.
     pub parent_tasks: Option<Vec<Task>>,
+    /// Status of the task.
     pub status: schema::Status,
+    /// Timestamp - unix
     pub timestamp: i64,
+    /// output of given task. None if task hasnt been completed yet.
     pub data: Option<String>,
+    /// params of given task.
     pub params: JobType,
 }
 
@@ -24,6 +33,17 @@ pub struct InsertableTaskTree {
     pub status: schema::Status,
     pub data: Option<String>,
     pub params: JobType,
+}
+
+impl InsertableTaskTree {
+    pub fn input(data: &str) -> Self {
+        Self {
+            parent_tasks: vec![],
+            status: schema::Status::Pending,
+            data: Some(data.to_string()),
+            params: JobType::input(),
+        }
+    }
 }
 
 fn get_timestamp() -> i64 {
@@ -40,24 +60,6 @@ mod task_querry {
         processing::job::JobType,
     };
     use postgres::{GenericClient};
-
-    pub fn get_task_by_id<C>(conn: &mut C, id: i64) -> Result<schema::TaskSchema, ErrorType> 
-    where C: GenericClient 
-    {
-        const QUERY: &str =
-            "SELECT id, task_id, status, timestamp, data, params FROM tasks WHERE id = $1";
-
-        let row = conn.query_one(QUERY, &[&id])?;
-
-        Ok(schema::TaskSchema {
-            id: row.try_get(0)?,
-            task_id: row.try_get(1)?,
-            status: row.try_get(2)?,
-            timestamp: row.try_get(3)?,
-            data: row.try_get(4)?,
-            params: row.try_get(5)?,
-        })
-    }
 
     pub fn get_parent_tasks(conn: &mut impl GenericClient, child_task_id: i64) -> Result<Vec<Task>, ErrorType> {
         // get all parent tasks 
@@ -247,10 +249,6 @@ impl Database {
         tx.commit()?;
 
         Ok(())
-    }
-
-    pub fn get_task_by_id(&mut self, id: i64) -> Result<schema::TaskSchema, ErrorType> {
-        task_querry::get_task_by_id(&mut self.conn, id)
     }
 
     pub fn get_runnable_tasks(&mut self) -> Result<Vec<Task>, ErrorType> {
