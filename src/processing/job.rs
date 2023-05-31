@@ -15,6 +15,7 @@ pub enum JobType {
     Crop(CropJob),
     Blur(BlurJob),
     Brightness(BrightnessJob),
+    Input,
 }
 
 impl JobType {
@@ -25,31 +26,50 @@ impl JobType {
     pub fn new_blur(blur: f32) -> Self {
         JobType::Blur(BlurJob(blur))
     }
+
+    pub fn input() -> Self {
+        JobType::Input
+    }
 }
 
-use crate::database::repositories::task::Task;
+use crate::{database::repositories::task::Task, processing::data_loader::load_image};
 use image::RgbImage;
 
-use super::file_loader::{load_image, DataLoaderError};
-
 #[derive(Debug)]
-pub struct Job {
-    job: Task,
-    data: Vec<RgbImage>,
+pub struct Job<T>
+where
+    T: TryFrom<JobType>,
+{
+    pub task: T,
+    pub data: Vec<RgbImage>,
 }
 
-impl Job {
+impl<T> Job<T>
+where
+    T: TryFrom<JobType>,
+{
     pub fn from_task(task: Task) -> Result<Self, Vec<i64>> {
-        let input = task
-            .parent_tasks
-            .as_ref()
-            .unwrap()
-            .iter()
-            .map(|task| match load_image(&task.data) {
-                Ok(image) => Ok(image),
-                Err(DataLoaderError) => Err(task.id),
-            })
-            .collect::<Vec<_>>();
+        fn load_images_from_task_parents(task: &Task) -> Vec<Result<RgbImage, i64>> {
+            task.parent_tasks
+                .as_ref()
+                .unwrap()
+                .iter()
+                .map(|task| {
+                    task.data
+                        .as_ref()
+                        .ok_or(task.task_id)
+                        .and_then(|data| load_image(&data).map_err(|_| task.task_id))
+                })
+                .collect::<Vec<_>>()
+        }
+
+        let input = load_images_from_task_parents(&task);
+
+        let task = match task.params.try_into() {
+            Ok(task) => task,
+            Err(_) => return Err(vec![]),
+        };
+        
 
         // if any is Err, return Err
         if input.iter().any(|result| result.is_err()) {
@@ -62,7 +82,7 @@ impl Job {
                 .collect())
         } else {
             Ok(Self {
-                job: task,
+                task: task,
                 data: input
                     .iter()
                     .map(|result| result.as_ref().unwrap().clone())

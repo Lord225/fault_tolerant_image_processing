@@ -10,12 +10,12 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Task {
-    pub id: i64,
+    id: i64,
     pub task_id: i64,
     pub parent_tasks: Option<Vec<Task>>,
     pub status: schema::Status,
     pub timestamp: i64,
-    pub data: String,
+    pub data: Option<String>,
     pub params: JobType,
 }
 
@@ -73,7 +73,7 @@ mod task_querry {
             let task_id: i64 = row.try_get(1)?;
             let status: schema::Status = row.try_get(2)?;
             let timestamp: i64 = row.try_get(3)?;
-            let data: String = row.try_get(4)?;
+            let data: Option<String> = row.try_get(4)?;
             let params: String = row.try_get(5)?;
 
             let params: JobType = serde_json::from_str(&params)?;
@@ -93,7 +93,10 @@ mod task_querry {
     }
 
     pub fn get_runnable_tasks(conn: &mut impl GenericClient) -> Result<Vec<Task>, ErrorType> {
-        const QUERRY: &str = "SELECT t.id, t.task_id, status, timestamp, data, params FROM tasks t LEFT JOIN parents p ON t.task_id = p.task_id WHERE (t.status = 'pending' AND (p.parent_id IS NULL OR p.parent_id IN (SELECT task_id FROM tasks WHERE status = 'completed')))";
+        // select tasks that have no parents, or ALL parents are completed
+        const QUERRY: &str = r#"SELECT t.id, t.task_id, t.status, t.timestamp, t.data, t.params
+        FROM tasks t
+        WHERE t.status = 'pending';"#; // bad
 
         let rows = conn.query(QUERRY, &[])?;
 
@@ -104,7 +107,7 @@ mod task_querry {
             let task_id: i64 = row.try_get(1)?;
             let status: schema::Status = row.try_get(2)?;
             let timestamp: i64 = row.try_get(3)?;
-            let data: String = row.try_get(4)?;
+            let data: Option<String> = row.try_get(4)?;
             let params: String = row.try_get(5)?;
 
             let params: JobType = serde_json::from_str(&params)?;
@@ -115,7 +118,7 @@ mod task_querry {
                 parent_tasks: None,
                 status,
                 timestamp,
-                data,
+                data: data,
                 params,
             });
         }
@@ -132,7 +135,7 @@ mod task_querry {
         let task_id: i64 = row.try_get(1)?;
         let status: schema::Status = row.try_get(2)?;
         let timestamp: i64 = row.try_get(3)?;
-        let data: String = row.try_get(4)?;
+        let data: Option<String> = row.try_get(4)?;
         let params: String = row.try_get(5)?;
         let params: JobType = serde_json::from_str(&params)?;
         
@@ -262,6 +265,34 @@ impl Database {
         task_querry::get_parent_tasks(&mut self.conn, task_id)
     }
 
+    pub fn mark_task_as_completed(&mut self, task_id: i64) -> Result<(), ErrorType> {
+        let mut tx = self.conn.transaction()?;
+
+        let task = task_querry::get_last_task_state(&mut tx, task_id)?;
+
+        if task.status != schema::Status::Running {
+            return Err(ErrorType::Other);
+        }
+
+        task_querry::insert_status(&mut tx, &task, schema::Status::Completed)?;
+
+        tx.commit()?;
+
+        Ok(())
+    }
+
+    pub fn mark_task_as_failed(&mut self, task_id: i64) -> Result<(), ErrorType> {
+        let mut tx = self.conn.transaction()?;
+
+        let task = task_querry::get_last_task_state(&mut tx, task_id)?;
+
+        task_querry::insert_status(&mut tx, &task, schema::Status::Failed)?;
+
+        tx.commit()?;
+
+        Ok(())
+    }
+
     pub fn claim_runnable_tasks<WorkerJobType: TryFrom<JobType> + Copy>(
         &mut self,
         limit: Option<u32>,
@@ -269,6 +300,8 @@ impl Database {
         let mut tx = self.transaction()?;
 
         let tasks = task_querry::get_runnable_tasks(&mut tx)?;
+
+        dbg!(&tasks);
 
         let tasks = tasks
             .iter()

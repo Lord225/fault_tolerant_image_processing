@@ -12,11 +12,11 @@ use iced::{Alignment, Color, Element, Length, Sandbox, Settings};
 
 mod processing;
 mod database;
+mod tests_common;
 
 use processing::job;
+use processing::worker::worker1::{Worker1Job, Worker1};
 
-use crate::processing::worker::worker1::Worker1Job;
-use crate::processing::worker::worker2::Worker2Job;
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -43,46 +43,52 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     db.insert_new_task_tree(
     &InsertableTaskTree {
-            data: Some("Main Task".to_string()),
+            data: None,
             status: database::schema::Status::Pending,
-            params: job::JobType::new_blur(0.0),
+            params: job::JobType::new_resize(1, 0),
 
             parent_tasks: vec![
                 InsertableTaskTree {
-                    data: Some("Subtask 1".to_string()),
+                    data: None,
                     status: database::schema::Status::Pending,
-                    params: job::JobType::new_blur(0.0),
+                    params: job::JobType::new_resize(0, 1),
                     parent_tasks: vec![
                         InsertableTaskTree {
-                            data: Some("Subtask for subtask 1".to_string()),
-                            status: database::schema::Status::Pending,
-                            params: job::JobType::new_blur(0.0),
+                            data: Some("C:\\rustrepos\\fault_tolerant_image_processing\\temp\\in1.jpg".to_string()),
+                            status: database::schema::Status::Completed,
+                            params: job::JobType::input(),
         
                             parent_tasks: vec![]
                         },
                     ]
                 }, 
                 InsertableTaskTree {
-                    data: Some("Subtask 2".to_string()),
-                    status: database::schema::Status::Pending,
-                    params: job::JobType::new_resize(100,100),
+                    data: Some("C:\\rustrepos\\fault_tolerant_image_processing\\temp\\in2.jpg".to_string()),
+                    status: database::schema::Status::Completed,
+                    params: job::JobType::input(),
 
                     parent_tasks: vec![]
                 }
             ]
         }
     )?;
-    
-    dbg!(db.get_task_by_id(1)?);
-    dbg!(db.get_runnable_tasks()?);
-    
-    let task = db.get_task_by_id(1)?; // main
+    println!("Inserted new task tree");
 
-    dbg!(db.get_parent_tasks(task.task_id)?); // subtask 1, subtask 2
+    let mut worker1 = processing::worker::WorkerThread::<Worker1>::new();
+    let queue1 = worker1.start(Worker1::new(), database::common::open_connection()?);
 
-    dbg!(db.claim_all_runnable_tasks::<Worker2Job>()?);
-    dbg!(db.claim_all_runnable_tasks::<Worker1Job>()?);
+    let mut worker2 = processing::worker::WorkerThread::<Worker1>::new();
+    let queue2 = worker2.start(Worker1::new(), database::common::open_connection()?);
 
+    println!("Workers created");
+
+    let tasks = db.claim_runnable_tasks::<Worker1Job>(None)?;
+
+    dbg!(&tasks);
+
+    for task in tasks {
+        queue1.send(task)?;
+    }
     
     Styling::run(Settings::default())?;
 
