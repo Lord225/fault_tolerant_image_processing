@@ -1,6 +1,6 @@
 use std::error::Error;
 use database::repositories::task::InsertableTaskTree;
-use dotenvy;
+
 use clap::Parser;
 
 use iced::theme::{self, Theme};
