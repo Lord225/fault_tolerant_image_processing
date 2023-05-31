@@ -194,8 +194,6 @@ mod task_querry {
     pub fn mark_timeouted_tasks_as_failed(conn: &mut impl GenericClient, tasks: Vec<Task>) -> Result<(), ErrorType> {
         todo!()
     }
-
-
 }
 
 impl Database {
@@ -293,7 +291,7 @@ impl Database {
 
         // claim tasks
         for task in &tasks {
-            task_querry::mark_task_as_running(&mut tx, task.clone())?;
+            task_querry::mark_task_as_running(&mut tx, task)?;
         }
 
         tx.commit()?;

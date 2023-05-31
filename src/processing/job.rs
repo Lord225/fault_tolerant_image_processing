@@ -39,19 +39,35 @@ pub struct Job {
 }
 
 impl Job {
-    pub fn from_task(task: Task) -> Result<Self, DataLoaderError> {
+    pub fn from_task(task: Task) -> Result<Self, Vec<i64>> {
         let input = task
             .parent_tasks
             .as_ref()
-            .ok_or(DataLoaderError)?
+            .unwrap()
             .iter()
-            .map(|task| &task.data)
-            .map(|path| load_image(path))
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(|task| match load_image(&task.data) {
+                Ok(image) => Ok(image),
+                Err(DataLoaderError) => Err(task.id),
+            })
+            .collect::<Vec<_>>();
 
-        Ok(Self {
-            job: task,
-            data: input,
-        })
+        // if any is Err, return Err
+        if input.iter().any(|result| result.is_err()) {
+            Err(input
+                .iter()
+                .filter_map(|x| match x {
+                    Ok(_) => None,
+                    Err(id) => Some(*id),
+                })
+                .collect())
+        } else {
+            Ok(Self {
+                job: task,
+                data: input
+                    .iter()
+                    .map(|result| result.as_ref().unwrap().clone())
+                    .collect::<Vec<_>>(),
+            })
+        }
     }
 }
