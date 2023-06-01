@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct ResizeJob(u32, u32);
+pub struct ResizeJob(pub u32, pub u32);
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct CropJob(u32, u32);
+pub struct CropJob(pub u32, pub u32, pub u32, pub u32);
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct BlurJob(f32);
+pub struct BlurJob(pub f32);
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct BrightnessJob(f32);
+pub struct BrightnessJob(pub f32);
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum JobType {

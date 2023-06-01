@@ -45,13 +45,13 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     &InsertableTaskTree {
             data: None,
             status: database::schema::Status::Pending,
-            params: job::JobType::new_resize(1, 0),
+            params: job::JobType::new_resize(128, 128),
 
             parent_tasks: vec![
                 InsertableTaskTree {
                     data: None,
                     status: database::schema::Status::Pending,
-                    params: job::JobType::new_resize(0, 1),
+                    params: job::JobType::new_resize(512, 512),
                     parent_tasks: vec![
                         InsertableTaskTree::input("C:\\rustrepos\\fault_tolerant_image_processing\\temp\\in1.jpg"),
                     ]
@@ -63,10 +63,10 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     println!("Inserted new task tree");
 
     let mut worker1 = processing::worker::WorkerThread::<Worker1>::new();
-    let queue1 = worker1.start(Worker1::new(), database::common::open_connection()?);
+    worker1.start(Worker1::new(), database::common::open_connection()?);
 
     let mut worker2 = processing::worker::WorkerThread::<Worker1>::new();
-    let _queue2 = worker2.start(Worker1::new(), database::common::open_connection()?);
+    worker2.start(Worker1::new(), database::common::open_connection()?);
 
     println!("Workers created");
 
@@ -75,8 +75,28 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     dbg!(&tasks);
 
     for task in tasks {
-        queue1.send(task)?;
+        worker1.send_task(task);
     }
+
+    println!("Tasks sent");
+
+    // wait 1 second
+    std::thread::sleep(std::time::Duration::from_secs(5));
+
+    worker1.restore_thread(|| (Worker1::new(), database::common::open_connection().unwrap()));
+
+    let tasks = db.claim_runnable_tasks::<Worker1Job>(None)?;
+
+    dbg!(&tasks);
+
+    for task in tasks {
+        worker1.send_task(task);
+    }
+
+    std::thread::sleep(std::time::Duration::from_secs(5));
+
+
+    
     
     Styling::run(Settings::default())?;
 
