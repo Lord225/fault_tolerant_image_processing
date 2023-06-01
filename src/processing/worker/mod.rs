@@ -64,7 +64,7 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
                     }
                 },
                 Err(failed_tasks_ids) => {
-                    println!("WorkerThread::thread_body(): Parent job failed: {:?}", failed_tasks_ids);
+                    println!("WorkerThread::thread_body(): Parent was marked as completed, but failed: {:?}", failed_tasks_ids);
 
                     for failed_task_id in failed_tasks_ids {
                         journal.mark_task_as_failed(failed_task_id).unwrap();

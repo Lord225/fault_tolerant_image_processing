@@ -44,15 +44,16 @@ where
     pub data: Vec<RgbImage>,
 }
 
+type InvalidTask = i64;
+type LoadDataResult = Result<RgbImage, InvalidTask>;
+
 impl<T> Job<T>
 where
     T: TryFrom<JobType>,
 {
-    pub fn from_task(task: Task) -> Result<Self, Vec<i64>> {
-        fn load_images_from_task_parents(task: &Task) -> Vec<Result<RgbImage, i64>> {
-            task.parent_tasks
-                .as_ref()
-                .unwrap()
+    pub fn from_task(task: Task) -> Result<Self, Vec<InvalidTask>> {
+        fn load_images_from_task_parents(parents: &Vec<Task>) -> Vec<LoadDataResult> {
+            parents
                 .iter()
                 .map(|task| {
                     task.data
@@ -63,30 +64,35 @@ where
                 .collect::<Vec<_>>()
         }
 
-        let input = load_images_from_task_parents(&task);
-
-        let task = match task.params.try_into() {
-            Ok(task) => task,
-            Err(_) => return Err(vec![]),
-        };
-        
-
-        // if any is Err, return Err
-        if input.iter().any(|result| result.is_err()) {
-            Err(input
+        fn collect_errors(inputs: Vec<LoadDataResult>) -> Vec<InvalidTask> {
+            inputs
                 .iter()
                 .filter_map(|x| match x {
                     Ok(_) => None,
                     Err(id) => Some(*id),
                 })
-                .collect())
+                .collect()
+        }
+        fn unwrap_inputs(inputs: Vec<LoadDataResult>) -> Vec<RgbImage> {
+            inputs
+                .iter()
+                .map(|result| result.as_ref().unwrap().clone())
+                .collect::<Vec<_>>()
+        }
+
+        let input: _ = load_images_from_task_parents(&task.parent_tasks.unwrap());
+
+        let task = match task.params.try_into() {
+            Ok(task) => task,
+            Err(_) => return Err(vec![]),
+        };
+
+        if input.iter().any(|result| result.is_err()) {
+            Err(collect_errors(input))
         } else {
             Ok(Self {
-                task,
-                data: input
-                    .iter()
-                    .map(|result| result.as_ref().unwrap().clone())
-                    .collect::<Vec<_>>(),
+                task: task,
+                data: unwrap_inputs(input),
             })
         }
     }

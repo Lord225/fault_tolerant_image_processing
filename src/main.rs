@@ -53,22 +53,10 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                     status: database::schema::Status::Pending,
                     params: job::JobType::new_resize(0, 1),
                     parent_tasks: vec![
-                        InsertableTaskTree {
-                            data: Some("C:\\rustrepos\\fault_tolerant_image_processing\\temp\\in1.jpg".to_string()),
-                            status: database::schema::Status::Completed,
-                            params: job::JobType::input(),
-        
-                            parent_tasks: vec![]
-                        },
+                        InsertableTaskTree::input("C:\\rustrepos\\fault_tolerant_image_processing\\temp\\in1.jpg"),
                     ]
                 }, 
-                InsertableTaskTree {
-                    data: Some("C:\\rustrepos\\fault_tolerant_image_processing\\temp\\in2.jpg".to_string()),
-                    status: database::schema::Status::Completed,
-                    params: job::JobType::input(),
-
-                    parent_tasks: vec![]
-                }
+                InsertableTaskTree::input("C:\\rustrepos\\fault_tolerant_image_processing\\temp\\in2.jpg"),
             ]
         }
     )?;
