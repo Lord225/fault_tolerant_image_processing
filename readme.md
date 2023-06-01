@@ -134,20 +134,20 @@ SELECT * FROM latest_tasks lt LEFT JOIN parents p ON lt.task_id=p.task_id LEFT J
 
 ```SQL
 WITH latest_tasks AS (                          
-    SELECT t.task_id, t.status FROM tasks t                                                    
+    SELECT t.* FROM tasks t                                                    
     INNER JOIN (
         SELECT task_id, MAX(id) AS max_id
         FROM tasks
         GROUP BY task_id ) latest ON t.task_id = latest.task_id AND t.id = latest.max_id
-)                                                               
+)
+SELECT * FROM latest_tasks WHERE task_id IN (                                                               
 SELECT lt.task_id                                                                                                     
 FROM latest_tasks lt
 LEFT JOIN parents p ON lt.task_id = p.task_id
 LEFT JOIN latest_tasks lt2 ON p.parent_id = lt2.task_id
 WHERE lt.status IN ('pending', 'failed')
 GROUP BY lt.task_id
-HAVING ( COUNT(DISTINCT lt2.status) = 0 OR (
-        AND MAX(lt2.status) = 'completed' ));
+HAVING ( COUNT(DISTINCT lt2.status) = 0 OR (COUNT(DISTINCT lt2.status) = 1 AND MAX(lt2.status) = 'completed' )));
 ```
 
 MOZE działa^

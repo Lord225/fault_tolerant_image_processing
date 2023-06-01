@@ -1,5 +1,7 @@
 use std::time::SystemTime;
 
+use log::debug;
+
 use crate::{
     database::{
         common::{Database, ErrorType},
@@ -97,10 +99,21 @@ mod task_querry {
     pub fn get_runnable_tasks(conn: &mut impl GenericClient) -> Result<Vec<Task>, ErrorType> {
         // select tasks that have no parents, or ALL parents are completed
         const QUERRY: &str = r#"
-        SELECT t.id, t.task_id, t.status, t.timestamp, t.data, t.params 
-        FROM tasks t 
-        WHERE (t.status = 'pending' or t.status = 'failed') 
-        AND NOT EXISTS (SELECT 1 FROM tasks JOIN parents ON tasks.task_id = parents.parent_id WHERE parents.task_id = t.task_id AND tasks.status != 'completed');
+        WITH latest_tasks AS (                          
+            SELECT t.* FROM tasks t                                                    
+            INNER JOIN (
+                SELECT task_id, MAX(id) AS max_id
+                FROM tasks
+                GROUP BY task_id ) latest ON t.task_id = latest.task_id AND t.id = latest.max_id
+        )
+        SELECT * FROM latest_tasks WHERE task_id IN (                                                               
+        SELECT lt.task_id                                                                                                     
+        FROM latest_tasks lt
+        LEFT JOIN parents p ON lt.task_id = p.task_id
+        LEFT JOIN latest_tasks lt2 ON p.parent_id = lt2.task_id
+        WHERE lt.status IN ('pending', 'failed')
+        GROUP BY lt.task_id
+        HAVING ( COUNT(DISTINCT lt2.status) = 0 OR (COUNT(DISTINCT lt2.status) = 1 AND MAX(lt2.status) = 'completed' )));
         "#;
 
         let rows = conn.query(QUERRY, &[])?;
@@ -132,7 +145,7 @@ mod task_querry {
     }
 
     pub fn get_last_task_state(conn: &mut impl GenericClient, task_id: i64) -> Result<Task, ErrorType> {
-        const QUERY: &str = "SELECT id, task_id, status, timestamp, data, params FROM tasks WHERE task_id = $1 ORDER BY timestamp DESC LIMIT 1";
+        const QUERY: &str = "SELECT id, task_id, status, timestamp, data, params FROM tasks WHERE task_id = $1 ORDER BY id DESC LIMIT 1";
         
         let row = conn.query_one(QUERY, &[&task_id])?;
 
@@ -271,6 +284,7 @@ impl Database {
         let mut tx = self.conn.transaction()?;
 
         let task = task_querry::get_last_task_state(&mut tx, task_id)?;
+        dbg!(&task);
 
         if task.status != schema::Status::Running {
             return Err(ErrorType::Other);

@@ -53,10 +53,10 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                     status: database::schema::Status::Pending,
                     params: job::JobType::new_resize(512, 512),
                     parent_tasks: vec![
-                        InsertableTaskTree::input("C:\\rustrepos\\fault_tolerant_image_processing\\temp\\in1.jpg"),
+                        InsertableTaskTree::input("/home/michal/dev/sob/fault_tolerant_image_processing/temp/in1.jpg"),
                     ]
                 }, 
-                InsertableTaskTree::input("C:\\rustrepos\\fault_tolerant_image_processing\\temp\\in2.jpg"),
+                InsertableTaskTree::input("/home/michal/dev/sob/fault_tolerant_image_processing/temp/in2.jpg"),
             ]
         }
     )?;
