@@ -2,7 +2,7 @@ use image::RgbImage;
 use image;
 
 use crate::{processing::{worker::ImageWorker, job::{self}}};
-use log::info;
+
 
 
 pub struct Worker1;

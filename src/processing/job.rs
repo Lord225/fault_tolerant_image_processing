@@ -91,7 +91,7 @@ where
             Err(collect_errors(input))
         } else {
             Ok(Self {
-                task: task,
+                task,
                 data: unwrap_inputs(input),
             })
         }

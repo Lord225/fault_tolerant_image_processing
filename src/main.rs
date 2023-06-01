@@ -14,6 +14,7 @@ mod processing;
 mod database;
 mod tests_common;
 
+use log::info;
 use processing::job;
 use processing::worker::worker1::{Worker1Job, Worker1};
 
@@ -28,6 +29,7 @@ struct Args {
 pub fn main() -> Result<(), Box<dyn Error>> {
     // init .env
     dotenvy::dotenv().ok();
+    env_logger::init();
 
     // init cli
     let args = Args::parse();
@@ -40,6 +42,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let mut db = database::common::open_connection()?;
 
     database::migration::run_migrations(&mut db);
+    info!("chuj wie co");
 
     db.insert_new_task_tree(
     &InsertableTaskTree {

@@ -1,7 +1,7 @@
 pub mod worker1;
 pub mod worker2;
 
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self};
 use image::RgbImage;
 
 use crate::{database::{common::Database, repositories::task::Task}, processing::data_loader::save_image};
@@ -49,7 +49,7 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
     where F: FnOnce() -> (Worker, Database)
      {
         // check if thread is alive
-        if let Some((t, tx)) = &self.thread {
+        if let Some((t, _tx)) = &self.thread {
             if t.is_finished() {
                 println!("WorkerThread::restore_thread(): Thread died. restoring");
                 let (worker, journal) = f();

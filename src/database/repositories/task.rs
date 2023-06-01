@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 
-use log::debug;
+
 
 use crate::{
     database::{
@@ -61,11 +61,13 @@ mod task_querry {
         database::{common::ErrorType, schema, repositories::task::get_timestamp},
         processing::job::JobType,
     };
+    use log::info;
     use postgres::{GenericClient};
 
     pub fn get_parent_tasks(conn: &mut impl GenericClient, child_task_id: i64) -> Result<Vec<Task>, ErrorType> {
         // get all parent tasks 
         // it means: select all tasks that have parents with child_task_id is in parents table (sub select)
+        //TODO: fix this query it should select exactly one record for each parent task
         const QUERY: &str = "SELECT t.id, t.task_id, status, timestamp, data, params FROM tasks t WHERE t.task_id IN (SELECT parent_id FROM parents WHERE task_id = $1)";
 
         let rows = conn.query(QUERY, &[&child_task_id])?;
@@ -184,7 +186,7 @@ mod task_querry {
 
         let timestamp = get_timestamp();
 
-        println!("Database::status: '{:?}' for task '{:?}'", status, task.task_id);
+        info!("Database::status: '{:?}' for task '{:?}'", status, task.task_id);
 
         conn.execute(QUERY, &[&task.task_id, &status, &timestamp, &task.data, &serde_json::to_string(&task.params)?])?;
 
@@ -201,19 +203,19 @@ mod task_querry {
         }
     }
 
-    pub fn mark_task_as_failed(conn: &mut impl GenericClient, task: &Task) -> Result<(), ErrorType> {
+    pub fn mark_task_as_failed(_conn: &mut impl GenericClient, _task: &Task) -> Result<(), ErrorType> {
         todo!()
     }
 
-    pub fn mark_task_as_completed(conn: &mut impl GenericClient, task: &Task) -> Result<(), ErrorType> {
+    pub fn mark_task_as_completed(_conn: &mut impl GenericClient, _task: &Task) -> Result<(), ErrorType> {
         todo!()
     }
 
-    pub fn search_for_timeouted(conn: &mut impl GenericClient, timeout: std::time::Duration) -> Result<Vec<Task>, ErrorType> {
+    pub fn search_for_timeouted(_conn: &mut impl GenericClient, _timeout: std::time::Duration) -> Result<Vec<Task>, ErrorType> {
         todo!()
     }
 
-    pub fn mark_timeouted_tasks_as_failed(conn: &mut impl GenericClient, tasks: Vec<Task>) -> Result<(), ErrorType> {
+    pub fn mark_timeouted_tasks_as_failed(_conn: &mut impl GenericClient, _tasks: Vec<Task>) -> Result<(), ErrorType> {
         todo!()
     }
 }
