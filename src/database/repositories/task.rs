@@ -39,7 +39,7 @@ impl InsertableTaskTree {
     pub fn input(data: &str) -> Self {
         Self {
             parent_tasks: vec![],
-            status: schema::Status::Pending,
+            status: schema::Status::Completed,
             data: Some(data.to_string()),
             params: JobType::input(),
         }
@@ -96,9 +96,12 @@ mod task_querry {
 
     pub fn get_runnable_tasks(conn: &mut impl GenericClient) -> Result<Vec<Task>, ErrorType> {
         // select tasks that have no parents, or ALL parents are completed
-        const QUERRY: &str = r#"SELECT t.id, t.task_id, t.status, t.timestamp, t.data, t.params
-        FROM tasks t
-        WHERE t.status = 'pending';"#; // bad
+        const QUERRY: &str = r#"
+        SELECT t.id, t.task_id, t.status, t.timestamp, t.data, t.params 
+        FROM tasks t 
+        WHERE (t.status = 'pending' or t.status = 'failed') 
+        AND NOT EXISTS (SELECT 1 FROM tasks JOIN parents ON tasks.task_id = parents.parent_id WHERE parents.task_id = t.task_id AND tasks.status != 'completed');
+        "#;
 
         let rows = conn.query(QUERRY, &[])?;
 
@@ -168,6 +171,8 @@ mod task_querry {
 
         let timestamp = get_timestamp();
 
+        println!("Database::status: '{:?}' for task '{:?}'", status, task.task_id);
+
         conn.execute(QUERY, &[&task.task_id, &status, &timestamp, &task.data, &serde_json::to_string(&task.params)?])?;
 
         Ok(())
@@ -177,7 +182,6 @@ mod task_querry {
         // check if task is runnable
         if is_task_not_completed(conn, task.task_id)? {
             insert_status(conn, task, schema::Status::Running)?;
-    
             Ok(())
         } else {
             Err(ErrorType::TaskNotRunnable(task.task_id))
@@ -299,8 +303,6 @@ impl Database {
 
         let tasks = task_querry::get_runnable_tasks(&mut tx)?;
 
-        dbg!(&tasks);
-
         let tasks = tasks
             .iter()
             .filter_map(|task| {
@@ -322,7 +324,10 @@ impl Database {
 
         // claim tasks
         for task in &tasks {
-            task_querry::mark_task_as_running(&mut tx, task)?;
+            match task_querry::mark_task_as_running(&mut tx, task) {
+                Ok(_) => {},
+                Err(_) => println!("Task {:?} for worker not runnable ({:?})", task.task_id, task.status),
+            }
         }
 
         tx.commit()?;

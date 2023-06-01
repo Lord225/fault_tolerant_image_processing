@@ -1,4 +1,5 @@
 use image::RgbImage;
+use image;
 
 use crate::{processing::{worker::ImageWorker, job::{self}}};
 
@@ -32,12 +33,26 @@ impl ImageWorker for Worker1 {
             job::Job { task: Worker1Job::Resize(_params), data } => {
                 println!("Worker1::process() Resize");
                 
-                Ok(data[0].clone())
+                let img = data.first().unwrap();
+
+                Ok(image::imageops::resize(img, 
+                                          _params.0, 
+                                         _params.1, 
+                                          image::imageops::FilterType::Nearest))
             },
-            job::Job { task: Worker1Job::Crop(_params), data } => {
+            job::Job { task: Worker1Job::Crop(_params), mut data } => {
                 println!("Worker1::process() Crop");
+
+                // get the first image as &mut 
+                let img = data.first_mut().unwrap(); 
                 
-                Ok(data[0].clone())
+                Ok(
+                    image::imageops::crop(img, 
+                                          _params.0, 
+                                         _params.1, 
+                                          _params.2, 
+                                         _params.3).to_image()
+                )
             },
         }
     }

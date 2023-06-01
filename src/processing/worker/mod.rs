@@ -15,7 +15,7 @@ pub trait ImageWorker {
 }
 
 pub struct WorkerThread<Worker: ImageWorker+Send> {
-    thread: Option<std::thread::JoinHandle<()>>,
+    thread: Option<(std::thread::JoinHandle<()>, mpsc::Sender<Task>)>,
     phantom: std::marker::PhantomData<Worker>,
 }
 
@@ -27,17 +27,42 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
         }
     }
 
-    pub fn start(&mut self, worker: Worker, journal: Database) -> Sender<Task> {
+    pub fn start(&mut self, worker: Worker, journal: Database) {
         let (tx, rx) = mpsc::channel();
 
         let thread = std::thread::spawn(move || {
             Self::thread_body(worker, journal, rx);
         });
 
-        self.thread = Some(thread);
-
-        tx
+        self.thread = Some((thread, tx));
     }
+
+    pub fn send_task(&mut self, task: Task) {
+        if let Some((_, tx)) = &self.thread {
+            tx.send(task).unwrap();
+        } else {
+            println!("WorkerThread::send_task(): Thread is not running.. Skiping task");
+        }
+    }
+
+    pub fn restore_thread<F>(&mut self, f: F)
+    where F: FnOnce() -> (Worker, Database)
+     {
+        // check if thread is alive
+        if let Some((t, tx)) = &self.thread {
+            if t.is_finished() {
+                println!("WorkerThread::restore_thread(): Thread died. restoring");
+                let (worker, journal) = f();
+                let (tx, rx) = mpsc::channel();
+
+                let thread = std::thread::spawn(move || {
+                    Self::thread_body(worker, journal, rx);
+                });
+
+                self.thread = Some((thread, tx));
+            }
+        }
+    } 
 
     fn thread_body(mut worker: Worker, mut journal: Database, channel: mpsc::Receiver<Task>) {
         loop {
