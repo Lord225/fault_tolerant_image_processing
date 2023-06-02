@@ -1,5 +1,5 @@
 use std::fmt::Formatter;
-use log::{trace, debug};
+use log::{debug};
 use uuid::Uuid;
 use image::{RgbImage, ImageError};
 
