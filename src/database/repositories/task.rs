@@ -186,7 +186,7 @@ mod task_querry {
 
         let timestamp = get_timestamp();
 
-        info!("Database::status: '{:?}' for task '{:?}'", status, task.task_id);
+        info!("'{:?}' for task '{:?}'", status, task.task_id);
 
         conn.execute(QUERY, &[&task.task_id, &status, &timestamp, &task.data, &serde_json::to_string(&task.params)?])?;
 
