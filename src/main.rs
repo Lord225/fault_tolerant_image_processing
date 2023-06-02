@@ -13,10 +13,13 @@ use iced::{Alignment, Color, Element, Length, Sandbox, Settings};
 mod processing;
 mod database;
 mod tests_common;
+mod temp;
 
 use log::info;
 use processing::job;
 use processing::worker::worker1::{Worker1Job, Worker1};
+
+use crate::temp::from_temp;
 
 
 #[derive(Parser, Debug)]
@@ -55,10 +58,10 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                     status: database::schema::Status::Pending,
                     params: job::JobType::new_resize(512, 512),
                     parent_tasks: vec![
-                        InsertableTaskTree::input("/home/michal/dev/sob/fault_tolerant_image_processing/temp/in1.jpg"),
+                        InsertableTaskTree::input(&from_temp("in1.jpg")),
                     ]
                 }, 
-                InsertableTaskTree::input("/home/michal/dev/sob/fault_tolerant_image_processing/temp/in2.jpg"),
+                InsertableTaskTree::input(&from_temp("in2.jpg")),
             ]
         }
     )?;
@@ -96,9 +99,6 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     }
 
     std::thread::sleep(std::time::Duration::from_secs(5));
-
-
-    
     
     Styling::run(Settings::default())?;
 
