@@ -1,5 +1,6 @@
 use image::RgbImage;
 use image;
+use log::debug;
 
 use crate::{processing::{worker::ImageWorker, job::{self}}};
 
@@ -32,7 +33,7 @@ impl ImageWorker for Worker1 {
     fn process(&mut self, job: job::Job<Self::WorkerJob>) -> Result<RgbImage, ()> {
         match job {
             job::Job { task: Worker1Job::Resize(_params), data } => {
-                dbg!("Worker1::process() Resize");
+                debug!("Resize {:?}", _params);
                 
                 let img = data.first().unwrap();
 
@@ -42,7 +43,7 @@ impl ImageWorker for Worker1 {
                                           image::imageops::FilterType::Nearest))
             },
             job::Job { task: Worker1Job::Crop(_params), mut data } => {
-                dbg!("Worker1::process() Crop");
+                debug!("Crop {:?}", _params);
 
                 // get the first image as &mut 
                 let img = data.first_mut().unwrap(); 

@@ -86,8 +86,7 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
                     }
                 },
                 Err(failed_tasks_ids) => {
-                    warn!("Parent was marked as completed, but failed: {:?}", failed_tasks_ids);
-
+                    warn!("Parents were marked as completed, but were not found in the database, ids: {:?}", failed_tasks_ids); 
                     for failed_task_id in failed_tasks_ids {
                         journal.mark_task_as_failed(failed_task_id).unwrap();
                     }

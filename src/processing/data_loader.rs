@@ -1,5 +1,5 @@
 use std::fmt::Formatter;
-use log::trace;
+use log::{trace, debug};
 use uuid::Uuid;
 use image::{RgbImage, ImageError};
 
@@ -22,12 +22,12 @@ impl From<ImageError> for DataLoaderError {
 impl std::error::Error for DataLoaderError {}
 
 pub fn load_image(path: &str) -> Result<RgbImage, DataLoaderError> {
-    trace!("loading {}", path);
+    debug!("loading {}", path);
     Ok(image::open(path)?.to_rgb8())
 }
 
 pub fn save_image_with_path(path: &str, image: &RgbImage) -> Result<(), DataLoaderError> {
-    trace!("saving {}", path);
+    debug!("saving {}", path);
     image.save(path)?;
     Ok(())
 }

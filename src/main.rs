@@ -32,6 +32,8 @@ struct Args {
 pub fn main() -> Result<(), Box<dyn Error>> {
     // init .env
     dotenvy::dotenv().ok();
+    dotenvy::from_filename(".env.local").ok();
+
     env_logger::init();
 
     // init cli
@@ -65,6 +67,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
             ]
         }
     )?;
+
     info!("Inserted new task tree");
 
     let mut worker1 = processing::worker::WorkerThread::<Worker1>::new();
@@ -77,7 +80,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     let tasks = db.claim_runnable_tasks::<Worker1Job>(None)?;
 
-    dbg!(&tasks);
+    info!("Found {} tasks", tasks.len());
 
     for task in tasks {
         worker1.send_task(task);
@@ -92,7 +95,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     let tasks = db.claim_runnable_tasks::<Worker1Job>(None)?;
 
-    dbg!(&tasks);
+    info!("Found {} tasks", tasks.len());
 
     for task in tasks {
         worker1.send_task(task);
