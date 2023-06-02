@@ -34,6 +34,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     dotenvy::dotenv().ok();
     dotenvy::from_filename(".env.local").ok();
 
+    // init logger
     env_logger::init();
 
     // init cli
