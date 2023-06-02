@@ -3,6 +3,7 @@ pub mod worker2;
 
 use std::sync::mpsc::{self};
 use image::RgbImage;
+use log::{error, info, warn};
 
 use crate::{database::{common::Database, repositories::task::Task}, processing::data_loader::save_image};
 
@@ -41,7 +42,7 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
         if let Some((_, tx)) = &self.thread {
             tx.send(task).unwrap();
         } else {
-            println!("WorkerThread::send_task(): Thread is not running.. Skiping task");
+            error!("Thread is not running.. Skiping task")
         }
     }
 
@@ -51,15 +52,11 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
         // check if thread is alive
         if let Some((t, _tx)) = &self.thread {
             if t.is_finished() {
-                println!("WorkerThread::restore_thread(): Thread died. restoring");
+                error!("Thread died. restoring");
+                
                 let (worker, journal) = f();
-                let (tx, rx) = mpsc::channel();
-
-                let thread = std::thread::spawn(move || {
-                    Self::thread_body(worker, journal, rx);
-                });
-
-                self.thread = Some((thread, tx));
+                
+                self.start(worker, journal);
             }
         }
     } 
@@ -71,25 +68,25 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
 
             let result = match Job::<Worker::WorkerJob>::from_task(task) {
                 Ok(job) => {
-                    println!("WorkerThread::thread_body(): Received task: {}", task_id);
+                    info!("Received task: {}", task_id);
 
                     match  worker.process(job) {
                         Ok(image) => {
-                            println!("WorkerThread::thread_body(): Job processed successfully");
+                            info!("Job processed successfully");
 
                             save_image(&image).unwrap();
 
                             Ok(())
                         },
                         Err(_) => {
-                            println!("WorkerThread::thread_body(): Error processing job");
+                            warn!("Error processing job");
 
                             Err(())
                         },
                     }
                 },
                 Err(failed_tasks_ids) => {
-                    println!("WorkerThread::thread_body(): Parent was marked as completed, but failed: {:?}", failed_tasks_ids);
+                    warn!("Parent was marked as completed, but failed: {:?}", failed_tasks_ids);
 
                     for failed_task_id in failed_tasks_ids {
                         journal.mark_task_as_failed(failed_task_id).unwrap();

@@ -42,7 +42,6 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let mut db = database::common::open_connection()?;
 
     database::migration::run_migrations(&mut db);
-    info!("chuj wie co");
 
     db.insert_new_task_tree(
     &InsertableTaskTree {
@@ -63,7 +62,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
             ]
         }
     )?;
-    println!("Inserted new task tree");
+    info!("Inserted new task tree");
 
     let mut worker1 = processing::worker::WorkerThread::<Worker1>::new();
     worker1.start(Worker1::new(), database::common::open_connection()?);
@@ -71,7 +70,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let mut worker2 = processing::worker::WorkerThread::<Worker1>::new();
     worker2.start(Worker1::new(), database::common::open_connection()?);
 
-    println!("Workers created");
+    info!("Workers created");
 
     let tasks = db.claim_runnable_tasks::<Worker1Job>(None)?;
 
@@ -81,7 +80,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         worker1.send_task(task);
     }
 
-    println!("Tasks sent");
+    info!("Tasks sent");
 
     // wait 1 second
     std::thread::sleep(std::time::Duration::from_secs(5));

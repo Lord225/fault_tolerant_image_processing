@@ -286,7 +286,6 @@ impl Database {
         let mut tx = self.conn.transaction()?;
 
         let task = task_querry::get_last_task_state(&mut tx, task_id)?;
-        dbg!(&task);
 
         if task.status != schema::Status::Running {
             return Err(ErrorType::Other);
