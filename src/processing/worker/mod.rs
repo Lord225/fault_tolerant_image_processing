@@ -4,8 +4,9 @@ pub mod worker2;
 use std::sync::mpsc::{self};
 use image::RgbImage;
 use log::{error, info, warn};
+use uuid::Uuid;
 
-use crate::{database::{common::Database, repositories::task::Task}, processing::data_loader::save_image};
+use crate::{database::{common::Database, repositories::task::Task}, processing::data_loader::{save_image, save_image_with_path}, temp::from_temp};
 
 use super::job::{Job, JobType};
 
@@ -65,6 +66,7 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
         loop {
             let task = channel.recv().unwrap();
             let task_id = task.task_id;
+            let filename = from_temp(&format!("{}.bmp", Uuid::new_v4()));
 
             let result = match Job::<Worker::WorkerJob>::from_task(task) {
                 Ok(job) => {
@@ -74,7 +76,9 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
                         Ok(image) => {
                             info!("Job processed successfully");
 
-                            save_image(&image).unwrap();
+                            // save_image(&image).unwrap();
+                            save_image_with_path(&filename, &image).unwrap();
+                            
 
                             Ok(())
                         },
@@ -96,7 +100,7 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
             };
 
             match result {
-                Ok(()) => journal.mark_task_as_completed(task_id).unwrap(),
+                Ok(()) => journal.mark_task_as_completed(task_id, &filename).unwrap(),
                 Err(()) => journal.mark_task_as_failed(task_id).unwrap(),
             }           
 

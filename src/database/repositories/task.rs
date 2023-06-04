@@ -68,7 +68,16 @@ mod task_querry {
         // get all parent tasks 
         // it means: select all tasks that have parents with child_task_id is in parents table (sub select)
         //TODO: fix this query it should select exactly one record for each parent task
-        const QUERY: &str = "SELECT t.id, t.task_id, status, timestamp, data, params FROM tasks t WHERE t.task_id IN (SELECT parent_id FROM parents WHERE task_id = $1)";
+        const QUERY: &str = r#"
+        WITH latest_tasks AS (                          
+            SELECT t.* FROM tasks t                                                    
+            INNER JOIN (
+                SELECT task_id, MAX(id) AS max_id
+                FROM tasks
+                GROUP BY task_id ) latest ON t.task_id = latest.task_id AND t.id = latest.max_id
+        )
+        SELECT t.id, t.task_id, status, timestamp, data, params FROM latest_tasks t WHERE t.task_id IN (SELECT parent_id FROM parents WHERE task_id = $1)
+        "#;
 
         let rows = conn.query(QUERY, &[&child_task_id])?;
 
@@ -282,10 +291,11 @@ impl Database {
         task_querry::get_parent_tasks(&mut self.conn, task_id)
     }
 
-    pub fn mark_task_as_completed(&mut self, task_id: i64) -> Result<(), ErrorType> {
+    pub fn mark_task_as_completed(&mut self, task_id: i64, out: &str) -> Result<(), ErrorType> {
         let mut tx = self.conn.transaction()?;
 
-        let task = task_querry::get_last_task_state(&mut tx, task_id)?;
+        let mut task = task_querry::get_last_task_state(&mut tx, task_id)?;
+        task.data = Some(out.to_string());
 
         if task.status != schema::Status::Running {
             return Err(ErrorType::Other);
