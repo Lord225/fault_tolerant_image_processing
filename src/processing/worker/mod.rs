@@ -4,9 +4,10 @@ pub mod worker2;
 use std::sync::mpsc::{self};
 use image::RgbImage;
 use log::{error, info, warn};
+use no_panic::no_panic;
 use uuid::Uuid;
 
-use crate::{database::{common::Database, repositories::task::Task}, processing::data_loader::{save_image, save_image_with_path}, temp::from_temp};
+use crate::{database::{common::{Database, ErrorType}, repositories::task::Task}, processing::data_loader::{save_image, save_image_with_path}, temp::from_temp};
 
 use super::job::{Job, JobType};
 
@@ -32,18 +33,29 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
     pub fn start(&mut self, worker: Worker, journal: Database) {
         let (tx, rx) = mpsc::channel();
 
-        let thread = std::thread::spawn(move || {
+        let thread= std::thread::spawn(move || {
             Self::thread_body(worker, journal, rx);
         });
 
         self.thread = Some((thread, tx));
     }
 
-    pub fn send_task(&mut self, task: Task) {
+    pub fn send_task(&mut self, task: Task) -> Result<(), ErrorType> {
         if let Some((_, tx)) = &self.thread {
-            tx.send(task).unwrap();
+            match tx.send(task) {
+                Ok(_) => Ok(()),
+                Err(_) => Err(ErrorType::WorkerThreadFailed) 
+            }
         } else {
-            error!("Thread is not running.. Skiping task")
+            Err(ErrorType::WorkerThreadFailed)
+        }
+    }
+
+    pub fn thread_died(&self) -> bool {
+        if let Some((t, _tx)) = &self.thread {
+            t.is_finished()
+        } else {
+            true
         }
     }
 
@@ -51,12 +63,14 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
     where F: FnOnce() -> (Worker, Database)
      {
         // check if thread is alive
-        if let Some((t, _tx)) = &self.thread {
-            if t.is_finished() {
-                error!("Thread died. restoring");
-                
+        if self.thread.is_none() {
+            let (worker, journal) = f();
+            info!("Starting worker thread");
+            self.start(worker, journal);
+        } else if self.thread_died() {
+            if self.thread_died() {
                 let (worker, journal) = f();
-                
+                warn!("Thread died. Restarting...");
                 self.start(worker, journal);
             }
         }

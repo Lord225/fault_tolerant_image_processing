@@ -3,6 +3,7 @@ use database::repositories::task::InsertableTaskTree;
 
 use clap::Parser;
 
+use engine::run;
 use iced::theme::{self, Theme};
 use iced::widget::{
     button, checkbox, column, container, horizontal_rule, progress_bar, radio, row, scrollable,
@@ -14,6 +15,7 @@ mod processing;
 mod database;
 mod tests_common;
 mod temp;
+mod engine;
 
 use log::info;
 use processing::job;
@@ -42,7 +44,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     // reset db
     if args.reset {
-        database::common::reset_database()?;
+        database::common::try_reset_database();
     }
 
     let mut db = database::common::open_connection()?;
@@ -53,7 +55,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     &InsertableTaskTree {
             data: None,
             status: database::schema::Status::Pending,
-            params: job::JobType::new_resize(128, 128),
+            params: job::JobType::new_overlay(10, 10),
 
             parent_tasks: vec![
                 InsertableTaskTree {
@@ -69,41 +71,9 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         }
     )?;
 
-    info!("Inserted new task tree");
 
-    let mut worker1 = processing::worker::WorkerThread::<Worker1>::new();
-    worker1.start(Worker1::new(), database::common::open_connection()?);
+    run();
 
-    let mut worker2 = processing::worker::WorkerThread::<Worker1>::new();
-    worker2.start(Worker1::new(), database::common::open_connection()?);
-
-    info!("Workers created");
-
-    let tasks = db.claim_runnable_tasks::<Worker1Job>(None)?;
-
-    info!("Found {} tasks", tasks.len());
-
-    for task in tasks {
-        worker1.send_task(task);
-    }
-
-    info!("Tasks sent");
-
-    // wait 1 second
-    std::thread::sleep(std::time::Duration::from_secs(5));
-
-    worker1.restore_thread(|| (Worker1::new(), database::common::open_connection().unwrap()));
-
-    let tasks = db.claim_runnable_tasks::<Worker1Job>(None)?;
-
-    info!("Found {} tasks", tasks.len());
-
-    for task in tasks {
-        worker1.send_task(task);
-    }
-
-    std::thread::sleep(std::time::Duration::from_secs(5));
-    
     Styling::run(Settings::default())?;
 
     Ok(())

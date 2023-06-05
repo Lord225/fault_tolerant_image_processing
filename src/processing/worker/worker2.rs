@@ -1,4 +1,5 @@
 use image::RgbImage;
+use log::{info, debug};
 
 use crate::processing::{worker::ImageWorker, job};
 
@@ -27,9 +28,14 @@ impl ImageWorker for Worker2 {
     type WorkerJob = Worker2Job;
 
     fn process(&mut self, _job: job::Job<Self::WorkerJob>) -> Result<RgbImage, ()> {
-        println!("Worker1::process()");
+        debug!("Worker1::process()");
 
         todo!()
     }
 }
 
+impl Worker2 {
+    pub fn new() -> Self {
+        Worker2
+    }
+}

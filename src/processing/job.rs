@@ -8,6 +8,8 @@ pub struct CropJob(pub u32, pub u32, pub u32, pub u32);
 pub struct BlurJob(pub f32);
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct BrightnessJob(pub f32);
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct OverlayJob(pub u32, pub u32);
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum JobType {
@@ -15,6 +17,7 @@ pub enum JobType {
     Crop(CropJob),
     Blur(BlurJob),
     Brightness(BrightnessJob),
+    Overlay(OverlayJob),
     Input,
 }
 
@@ -25,6 +28,18 @@ impl JobType {
 
     pub fn new_blur(blur: f32) -> Self {
         JobType::Blur(BlurJob(blur))
+    }
+
+    pub fn new_brightness(brightness: f32) -> Self {
+        JobType::Brightness(BrightnessJob(brightness))
+    }
+
+    pub fn new_overlay(x: u32, y: u32) -> Self {
+        JobType::Overlay(OverlayJob(x, y))
+    }
+
+    pub fn new_crop(x: u32, y: u32, width: u32, height: u32) -> Self {
+        JobType::Crop(CropJob(x, y, width, height))
     }
 
     pub fn input() -> Self {
