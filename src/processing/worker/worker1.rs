@@ -64,7 +64,7 @@ impl ImageWorker for Worker1 {
                 // get the first image as &mut
                 let (img, rest) = data.split_first_mut().unwrap();
 
-                panic!("XD");
+                //panic!("XD");
 
                 // get the second image as &mut
                 let img2 = rest.first().unwrap();
