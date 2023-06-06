@@ -3,11 +3,11 @@ pub mod worker2;
 
 use std::sync::mpsc::{self};
 use image::RgbImage;
-use log::{error, info, warn};
-use no_panic::no_panic;
+use log::{info, warn};
+
 use uuid::Uuid;
 
-use crate::{database::{common::{Database, ErrorType}, repositories::task::Task}, processing::data_loader::{save_image, save_image_with_path}, temp::from_temp};
+use crate::{database::{common::{Database, ErrorType}, repositories::task::Task}, processing::data_loader::{save_image_with_path}, temp::from_temp};
 
 use super::job::{Job, JobType};
 
@@ -67,12 +67,10 @@ impl<Worker: ImageWorker+Send+'static> WorkerThread<Worker> {
             let (worker, journal) = f();
             info!("Starting worker thread");
             self.start(worker, journal);
-        } else if self.thread_died() {
-            if self.thread_died() {
-                let (worker, journal) = f();
-                warn!("Thread died. Restarting...");
-                self.start(worker, journal);
-            }
+        } else if self.thread_died() && self.thread_died() {
+            let (worker, journal) = f();
+            warn!("Thread died. Restarting...");
+            self.start(worker, journal);
         }
     } 
 

@@ -1,5 +1,5 @@
 use image::RgbImage;
-use log::{info, debug};
+use log::{debug};
 
 use crate::processing::{worker::ImageWorker, job};
 

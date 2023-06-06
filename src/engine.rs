@@ -1,5 +1,5 @@
 use log::{info, error, warn};
-use no_panic::no_panic;
+
 use std::thread;
 use std::time::Duration;
 use crate::{processing::worker::{worker1::{Worker1, Worker1Job}, worker2::{Worker2, Worker2Job}, WorkerThread}, database::common::{try_open_connection, Database, ErrorType}};

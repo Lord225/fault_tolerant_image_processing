@@ -17,9 +17,9 @@ mod tests_common;
 mod temp;
 mod engine;
 
-use log::info;
+
 use processing::job;
-use processing::worker::worker1::{Worker1Job, Worker1};
+
 
 use crate::temp::from_temp;
 
