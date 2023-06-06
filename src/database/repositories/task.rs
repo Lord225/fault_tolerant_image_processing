@@ -1,3 +1,4 @@
+use core::task;
 use std::time::SystemTime;
 
 
@@ -203,25 +204,30 @@ mod task_querry {
     }
 
     pub fn mark_task_as_running(conn: &mut impl GenericClient, task: &Task) -> Result<(), ErrorType> {
+        let mut tx: postgres::Transaction = conn.transaction()?;
         // check if task is runnable
-        if is_task_not_completed(conn, task.task_id)? {
-            insert_status(conn, task, schema::Status::Running)?;
+        if is_task_not_completed(&mut tx, task.task_id)? {
+            insert_status(&mut tx, task, schema::Status::Running)?;
+            tx.commit()?;
             Ok(())
         } else {
             Err(ErrorType::TaskNotRunnable(task.task_id))
         }
     }
 
-    pub fn mark_task_as_failed(_conn: &mut impl GenericClient, _task: &Task) -> Result<(), ErrorType> {
-        todo!()
+    pub fn mark_task_as_failed(_conn: &mut impl GenericClient, task_id: i64) -> Result<(), ErrorType> {
+        let mut tx = _conn.transaction()?;
+
+        let task = get_last_task_state(&mut tx, task_id)?;
+        insert_status(&mut tx, &task, schema::Status::Failed)?;
+
+        tx.commit()?;
+
+        Ok(())
     }
 
     pub fn search_for_timeouted(_conn: &mut impl GenericClient, _timeout: std::time::Duration) -> Result<Vec<Task>, ErrorType> {
-        todo!()
-    }
-
-    pub fn mark_timeouted_tasks_as_failed(_conn: &mut impl GenericClient, _timeout: std::time::Duration) -> Result<(), ErrorType> {
-        todo!()
+        Ok(Vec::new())
     }
 }
 
@@ -305,15 +311,25 @@ impl Database {
     }
 
     pub fn mark_task_as_failed(&mut self, task_id: i64) -> Result<(), ErrorType> {
+        task_querry::mark_task_as_failed(&mut self.conn, task_id)?;
+
+        Ok(())
+    }
+
+    pub fn mark_as_failed_timeouted(&mut self, timeout: std::time::Duration) -> Result<u32, ErrorType> {
         let mut tx = self.conn.transaction()?;
 
-        let task = task_querry::get_last_task_state(&mut tx, task_id)?;
+        let tasks = task_querry::search_for_timeouted(&mut tx, timeout)?;
 
-        task_querry::insert_status(&mut tx, &task, schema::Status::Failed)?;
+        let timeouted_tasks = tasks.len();
+
+        for task in tasks {
+            task_querry::insert_status(&mut tx, &task, schema::Status::Failed)?;
+        }
 
         tx.commit()?;
 
-        Ok(())
+        Ok(timeouted_tasks as u32)
     }
 
     pub fn claim_runnable_tasks<WorkerJobType: TryFrom<JobType> + Copy>(

@@ -4,6 +4,9 @@ use std::thread;
 use std::time::Duration;
 use crate::{processing::worker::{worker1::{Worker1, Worker1Job}, worker2::{Worker2, Worker2Job}, WorkerThread}, database::common::{try_open_connection, Database, ErrorType}};
 
+
+const TIMEOUT_DURATION: std::time::Duration = Duration::from_secs(5);
+
 struct Engine {
     worker1: WorkerThread<Worker1>,
     worker2: WorkerThread<Worker2>,
@@ -50,8 +53,18 @@ fn schedule_thread_body() -> !
 
     fn find_failed_tasks(db: &mut Database) -> Result<EngineState, ErrorType> {
         // todo check if there are any timeouted tasks.
+        
+        let failed_count = db.mark_as_failed_timeouted(TIMEOUT_DURATION)?;
 
-        Ok(EngineState::Idle)
+        if failed_count > 0 {
+            warn!("Found {} failed tasks", failed_count)
+        }
+
+        Ok(if failed_count == 0 {
+            EngineState::Idle
+        } else {
+            EngineState::WorkDone
+        })
     }
 
     fn body(db: &mut Database, engine: &mut Engine) -> Result<(), ErrorType> {
