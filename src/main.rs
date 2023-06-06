@@ -20,9 +20,7 @@ mod engine;
 
 use processing::job;
 
-
 use crate::temp::from_temp;
-
 
 #[derive(Parser, Debug)]
 struct Args {
@@ -79,6 +77,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+// stan aplikacji - iced 
 #[derive(Default)]
 struct Styling {
     theme: Theme,
@@ -92,12 +91,11 @@ struct Styling {
 enum ThemeType {
     Light,
     Dark,
-    Custom,
 }
 
+// Eventy aplikacji - iced
 #[derive(Debug, Clone)]
 enum Message {
-    ThemeChanged(ThemeType),
     InputChanged(String),
     ButtonPressed,
     SliderChanged(f32),
@@ -116,21 +114,10 @@ impl Sandbox for Styling {
         String::from("Styling - Iced")
     }
 
+
+    // update stanu aplikacji
     fn update(&mut self, message: Message) {
         match message {
-            Message::ThemeChanged(theme) => {
-                self.theme = match theme {
-                    ThemeType::Light => Theme::Light,
-                    ThemeType::Dark => Theme::Dark,
-                    ThemeType::Custom => Theme::custom(theme::Palette {
-                        background: Color::from_rgb(1.0, 0.9, 1.0),
-                        text: Color::BLACK,
-                        primary: Color::from_rgb(0.5, 0.5, 0.0),
-                        success: Color::from_rgb(0.0, 1.0, 0.0),
-                        danger: Color::from_rgb(1.0, 0.0, 0.0),
-                    }),
-                }
-            }
             Message::InputChanged(value) => self.input_value = value,
             Message::ButtonPressed => {}
             Message::SliderChanged(value) => self.slider_value = value,
@@ -140,23 +127,23 @@ impl Sandbox for Styling {
     }
 
     fn view(&self) -> Element<Message> {
-        let choose_theme = [ThemeType::Light, ThemeType::Dark, ThemeType::Custom]
-            .iter()
-            .fold(
-                column![text("Choose a theme:")].spacing(10),
-                |column, theme| {
-                    column.push(radio(
-                        format!("{theme:?}"),
-                        *theme,
-                        Some(match self.theme {
-                            Theme::Light => ThemeType::Light,
-                            Theme::Dark => ThemeType::Dark,
-                            Theme::Custom { .. } => ThemeType::Custom,
-                        }),
-                        Message::ThemeChanged,
-                    ))
-                },
-            );
+        // let choose_theme = [ThemeType::Light, ThemeType::Dark]
+        //     .iter()
+        //     .fold(
+        //         column![text("Choose a theme:")].spacing(10),
+        //         |column, theme| {
+        //             column.push(radio(
+        //                 format!("{theme:?}"),
+        //                 *theme,
+        //                 Some(match self.theme {
+        //                     Theme::Light => ThemeType::Light,
+        //                     Theme::Dark => ThemeType::Dark,
+        //                     Theme::Custom { .. } => ThemeType::Light,
+        //                 }),
+        //                 Message::ThemeChanged,
+        //             ))
+        //         },
+        //     );
 
         let text_input = text_input("Type something...", &self.input_value)
             .on_input(Message::InputChanged)
@@ -187,8 +174,6 @@ impl Sandbox for Styling {
         .spacing(10);
 
         let content = column![
-            choose_theme,
-            horizontal_rule(38),
             row![text_input, button].spacing(10),
             slider,
             progress_bar,

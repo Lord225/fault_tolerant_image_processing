@@ -31,8 +31,3 @@ pub fn save_image_with_path(path: &str, image: &RgbImage) -> Result<(), DataLoad
     image.save(path)?;
     Ok(())
 }
-
-pub fn save_image(image: &RgbImage) -> Result<(), DataLoaderError> {
-    
-    save_image_with_path(&from_temp(&format!("{}.bmp", Uuid::new_v4())), image)
-}
