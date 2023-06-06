@@ -216,15 +216,11 @@ mod task_querry {
         todo!()
     }
 
-    pub fn mark_task_as_completed(_conn: &mut impl GenericClient, _task: &Task) -> Result<(), ErrorType> {
-        todo!()
-    }
-
     pub fn search_for_timeouted(_conn: &mut impl GenericClient, _timeout: std::time::Duration) -> Result<Vec<Task>, ErrorType> {
         todo!()
     }
 
-    pub fn mark_timeouted_tasks_as_failed(_conn: &mut impl GenericClient, _tasks: Vec<Task>) -> Result<(), ErrorType> {
+    pub fn mark_timeouted_tasks_as_failed(_conn: &mut impl GenericClient, _timeout: std::time::Duration) -> Result<(), ErrorType> {
         todo!()
     }
 }
