@@ -24,3 +24,5 @@ log = { version = "0.4", features = ["std", "serde", "max_level_debug"] }
 env_logger = "0.10.0"
 clokwerk = "0.4.0"
 no-panic = "0.1"
+dialoguer = "0.10.4"
+nfd = "0.0.4"
