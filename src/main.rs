@@ -1,4 +1,4 @@
-use database::repositories::task::{InsertableTaskTree, Task};
+use database::repositories::task::{InsertableTaskTree};
 use log::debug;
 use std::{error::Error, vec};
 
@@ -6,12 +6,11 @@ use clap::Parser;
 
 use engine::run;
 use iced::alignment::{Horizontal, Vertical};
-use iced::theme::{self, Theme};
-use iced::widget::{pick_list, scrollable, slider, Row, Scrollable};
-use iced::Renderer;
+use iced::theme::{Theme};
+use iced::widget::{pick_list, slider, Row, Scrollable};
+
 use iced::{
-    widget::column, widget::row, widget::Button, widget::Column, widget::Container,
-    widget::PickList, widget::Space, widget::Text, Element, Length, Sandbox, Settings,
+    widget::column, widget::row, widget::Button, widget::Column, widget::Container, widget::Text, Element, Length, Sandbox, Settings,
 };
 
 use nfd::Response;
@@ -300,7 +299,7 @@ struct MyApp {
 // APP layout 
 //
 impl MyApp {
-    fn action_to_panel<'a>(&'a self, action: AvalibleActions) -> Element<'a, Message> {
+    fn action_to_panel(&self, action: AvalibleActions) -> Element<'_, Message> {
         match (action, self.panel_state) {
             (AvalibleActions::Crop, JobType::Crop(val)) => {
                 // crop has: x, y, width, height
@@ -326,7 +325,7 @@ impl MyApp {
                              Text::new("height"), height].spacing(5),].spacing(5).into()
             }
             (AvalibleActions::Brighten, JobType::Brightness(x)) => {
-                let value = slider(0.0..=100.0, x.0 as f32, |x| {
+                let value = slider(0.0..=100.0, x.0, |x| {
                     Message::SliderChanged(x, SliderChangedAction::Brighten(BrightenActions::Value))
                 });
     
@@ -345,7 +344,7 @@ impl MyApp {
                              Text::new("height"), height].spacing(5),].spacing(5).into()
             }
             (AvalibleActions::Blur, JobType::Blur(x)) => {
-                let value = slider(0.0..=100.0, x.0 as f32, |x| {
+                let value = slider(0.0..=100.0, x.0, |x| {
                     Message::SliderChanged(x, SliderChangedAction::Blur(BlurActions::Value))
                 });
     
