@@ -233,6 +233,7 @@ impl<'a, Message: 'a> From<TaskElement> for iced::Element<'a, Message> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AvalibleActions {
+    Input,
     Crop,
     Brighten,
     Resize,
@@ -272,6 +273,7 @@ static ALL_ACTIONS: &[AvalibleActions] = &[
     AvalibleActions::Brighten,
     AvalibleActions::Resize,
     AvalibleActions::Blur,
+    AvalibleActions::Input,
 ];
 
 // display
@@ -282,44 +284,11 @@ impl std::fmt::Display for AvalibleActions {
             AvalibleActions::Brighten => write!(f, "Brighten"),
             AvalibleActions::Resize => write!(f, "Resize"),
             AvalibleActions::Blur => write!(f, "Blur"),
+            AvalibleActions::Input => write!(f, "Input"),
         }
     }
 }
 
-fn action_to_panel<'a>(action: AvalibleActions, state: &JobType) -> Element<'a, Message> {
-    match (action, state) {
-        (AvalibleActions::Crop, JobType::Crop(val)) => {
-            // crop has: x, y, width, height
-            let x = slider(0.0..=100.0,val.0 as f32, |x| {
-                Message::SliderChanged(x, SliderChangedAction::Crop(CropActions::X))
-            });
-            let y = slider(0.0..=100.0,val.1 as f32, |x| {
-                Message::SliderChanged(x, SliderChangedAction::Crop(CropActions::Y))
-            });
-            
-            let width = slider(0.0..=100.0,val.2 as f32, |x| {
-                Message::SliderChanged(x, SliderChangedAction::Crop(CropActions::Width))
-            });
-            let height = slider(0.0..=100.0,val.3 as f32, |x| {
-                Message::SliderChanged(x, SliderChangedAction::Crop(CropActions::Height))
-            });
-
-            // put them in rows
-
-            column![row![x, y], row![width, height],].into()
-        }
-        (AvalibleActions::Brighten, JobType::Brightness(x)) => {
-            todo!()
-        }
-        (AvalibleActions::Resize, JobType::Resize(x)) => {
-            todo!()
-        }
-        (AvalibleActions::Blur, JobType::Blur(x)) => {
-            todo!()
-        },
-        (_, _) => {column![].into()},
-    }
-}
 
 struct MyApp {
     selected_file: Option<PathBuf>,
@@ -327,7 +296,91 @@ struct MyApp {
     panel_state: JobType,
     current_action: AvalibleActions,
 }
+//
+// APP layout 
+//
+impl MyApp {
+    fn action_to_panel<'a>(&'a self, action: AvalibleActions) -> Element<'a, Message> {
+        match (action, self.panel_state) {
+            (AvalibleActions::Crop, JobType::Crop(val)) => {
+                // crop has: x, y, width, height
+                let x = slider(0.0..=100.0,val.0 as f32, |x| {
+                    Message::SliderChanged(x, SliderChangedAction::Crop(CropActions::X))
+                });
+                let y = slider(0.0..=100.0,val.1 as f32, |x| {
+                    Message::SliderChanged(x, SliderChangedAction::Crop(CropActions::Y))
+                });
+                
+                let width = slider(0.0..=100.0,val.2 as f32, |x| {
+                    Message::SliderChanged(x, SliderChangedAction::Crop(CropActions::Width))
+                });
+                let height = slider(0.0..=100.0,val.3 as f32, |x| {
+                    Message::SliderChanged(x, SliderChangedAction::Crop(CropActions::Height))
+                });
+    
+                // put them in rows
+    
+                column![row![Text::new("x"),x, 
+                             Text::new("y"), y].spacing(5), 
+                        row![Text::new("width"), width, 
+                             Text::new("height"), height].spacing(5),].spacing(5).into()
+            }
+            (AvalibleActions::Brighten, JobType::Brightness(x)) => {
+                let value = slider(0.0..=100.0, x.0 as f32, |x| {
+                    Message::SliderChanged(x, SliderChangedAction::Brighten(BrightenActions::Value))
+                });
+    
+                column![row![Text::new("value"), value].spacing(5),].spacing(5).into()
+            }
+            (AvalibleActions::Resize, JobType::Resize(x)) => {
+                let width = slider(0.0..=100.0, x.0 as f32, |x| {
+                    Message::SliderChanged(x, SliderChangedAction::Resize(ResizeActions::Width))
+                });
+    
+                let height = slider(0.0..=100.0, x.1 as f32, |x| {
+                    Message::SliderChanged(x, SliderChangedAction::Resize(ResizeActions::Height))
+                });
+    
+                column![row![Text::new("width"), width, 
+                             Text::new("height"), height].spacing(5),].spacing(5).into()
+            }
+            (AvalibleActions::Blur, JobType::Blur(x)) => {
+                let value = slider(0.0..=100.0, x.0 as f32, |x| {
+                    Message::SliderChanged(x, SliderChangedAction::Blur(BlurActions::Value))
+                });
+    
+                column![row![Text::new("amount"), value].spacing(5),].spacing(5).into()
+            },
+            (AvalibleActions::Input, _) => {
+                let open_button = Button::new(Text::new("Open")).on_press(Message::OpenButtonPressed);
+                let message = match &self.selected_file {
+                    Some(path) => Column::new()
+                        .spacing(20)
+                        .push(Text::new("Selected file:").size(30))
+                        .push(Text::new(path.to_string_lossy())),
+                    None => Column::new()
+                        .spacing(20)
+                        .push(Text::new("No file selected").size(30)),
+                };
 
+                column![
+                    row![
+                        open_button,
+                        message,       
+                    ]
+                ].into()
+                
+            },
+            (_, _) => {column![].into()},
+        }
+    }
+}
+
+
+
+//
+// STATE UPDATE - MESSAGE HANDLING
+//
 #[derive(Debug, Clone)]
 enum Message {
     FileSelected(Option<PathBuf>),
@@ -335,10 +388,10 @@ enum Message {
     AddItem,
     ActionPickChanged(AvalibleActions),
     SliderChanged(f32, SliderChangedAction),
+    ConfirmJob,
 }
-
 impl MyApp {
-    fn update_state_on_slider(&mut self, slider: SliderChangedAction, value: f32) {
+        fn update_state_on_slider(&mut self, slider: SliderChangedAction, value: f32) {
         match slider {
             SliderChangedAction::Crop(a) => {
                 if let JobType::Crop(t) = &mut self.panel_state {
@@ -400,6 +453,7 @@ impl MyApp {
     }
 }
 
+
 impl Sandbox for MyApp {
     type Message = Message;
 
@@ -438,11 +492,15 @@ impl Sandbox for MyApp {
                     AvalibleActions::Brighten => self.panel_state = JobType::Brightness(BrightnessJob(0.0)),
                     AvalibleActions::Resize => self.panel_state = JobType::Resize(ResizeJob(0, 0)),
                     AvalibleActions::Blur => self.panel_state = JobType::Blur(BlurJob(0.0)),
+                    AvalibleActions::Input => self.panel_state = JobType::Crop(CropJob(0, 0, 0, 0)),
                 }
             }
             Message::SliderChanged(value, w) => {
                 self.update_state_on_slider(w, value);
                 debug!("Slider {:?} changed to {:?} ", w, value);
+            }
+            Message::ConfirmJob => {
+                debug!("Confirming job - {:?}", self.panel_state);
             }
         }
     }
@@ -470,29 +528,22 @@ impl Sandbox for MyApp {
         // pick list with avalible actions (Blur, Resize, Crop, Brighten)
         let pick_list = pick_list::PickList::new(
             ALL_ACTIONS,
-            Some(AvalibleActions::Crop),
+            Some(self.current_action),
             Message::ActionPickChanged,
         )
         .width(Length::Fill);
 
-        let action_panel = action_to_panel(self.current_action, &self.panel_state);
+        let action_panel = self.action_to_panel(self.current_action);
 
-        let open_button = Button::new(Text::new("Open")).on_press(Message::OpenButtonPressed);
+        let show_job_button = Button::new(Text::new("Show Job"))
+            .on_press(Message::ConfirmJob)
+            .width(Length::Fill);
 
-        let content = match &self.selected_file {
-            Some(path) => Column::new()
-                .spacing(20)
-                .push(Text::new("Selected file:").size(30))
-                .push(Text::new(path.to_string_lossy())),
-            None => Column::new()
-                .spacing(20)
-                .push(Text::new("No file selected").size(30)),
-        };
         // Container with two columns - left with scrollable list of items, right with pick list & buttons
         Container::new(
             row![
-                column![column, content].width(300),
-                column![pick_list, open_button, action_panel]
+                column![column].width(300),
+                column![pick_list, action_panel, show_job_button]
                     .spacing(10)
                     .width(Length::Fill)
             ]
