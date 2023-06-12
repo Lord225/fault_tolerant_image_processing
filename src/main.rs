@@ -208,9 +208,20 @@ enum ThemeType {
 //     }
 // }
 
+struct TaskElement {
+    id: u64,
+    name: String,
+}
+
+impl TaskElement {
+    fn new() -> Self{
+        TaskElement { id: (0), name: ("Hello".into()) }
+    }
+}
+
 struct MyApp {
     selected_file: Option<PathBuf>,
-    items: Vec<String>,
+    items: Vec<TaskElement>,
     // scroll: scrollable::Scrollbar,
 }
 
@@ -227,7 +238,7 @@ impl Sandbox for MyApp {
     fn new() -> Self {
         MyApp {
             selected_file: None,
-            items: vec![String::from("Hello"), String::from("World")],
+            items: vec![],
 
         }
     }
