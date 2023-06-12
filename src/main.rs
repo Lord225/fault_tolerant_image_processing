@@ -9,7 +9,7 @@ use clap::Parser;
 use engine::run;
 use iced::alignment::{Horizontal, Vertical};
 use iced::theme::{Palette, Theme};
-use iced::widget::{container, pick_list, slider, Row, Scrollable};
+use iced::widget::{container, pick_list, radio, slider, Row, Scrollable};
 
 use iced::{
     widget::column, widget::row, widget::Button, widget::Column, widget::Container, widget::Text,
@@ -263,30 +263,29 @@ impl<'a, Message: 'a> From<TaskElement> for iced::Element<'a, Message> {
                 bounds: Rectangle,
                 _: iced::widget::canvas::Cursor,
             ) -> Vec<iced::widget::canvas::Geometry> {
-                let rectangle = iced::widget::canvas::Path::rectangle(iced::Point::ORIGIN, bounds.size());
+                let rectangle =
+                    iced::widget::canvas::Path::rectangle(iced::Point::ORIGIN, bounds.size());
                 let background = iced::widget::canvas::Fill {
                     style: iced::widget::canvas::Style::Solid(self.0),
                     ..iced::widget::canvas::Fill::default()
                 };
 
                 let mut frame = iced::widget::canvas::Frame::new(bounds.size());
-                frame.fill(
-                    &rectangle,
-                    background,
-                );
+                frame.fill(&rectangle, background);
+
+                const FONT_SIZE: f32 = 20.0;
 
                 // draw text
                 let text = iced::widget::canvas::Text {
                     content: self.1.clone(),
-                    position: iced::Point::new(0.0, 0.0),
-                    size: 20.0,
+                    // middle of the rectangle
+                    position: iced::Point::new(5.0, bounds.height / 2.0 - FONT_SIZE / 2.0),
+                    size: FONT_SIZE,
                     color: Color::BLACK,
                     ..iced::widget::canvas::Text::default()
                 };
 
-                frame.fill_text(
-                    text
-                );
+                frame.fill_text(text);
 
                 vec![frame.into_geometry()]
             }
@@ -294,8 +293,7 @@ impl<'a, Message: 'a> From<TaskElement> for iced::Element<'a, Message> {
 
         let canvas = iced::widget::canvas::Canvas::new(RectangleProgram(background, name))
             .width(Length::Fill)
-            .height(50); 
-
+            .height(50);
 
         Container::new(row![canvas]).into()
     }
@@ -374,12 +372,21 @@ struct MyApp {
     items: Vec<TaskElement>,
     panel_state: JobType,
     current_action: AvalibleActions,
+    paused: bool,
+    throttle: f32,
+    error_rate: f32,
     db: Database,
 }
 
 impl MyApp {
     fn get_all_tasks(&mut self) {
-        self.items = self.db.get_all_tasks().unwrap().into_iter().map(|x| x.into()).collect();
+        self.items = self
+            .db
+            .get_all_tasks()
+            .unwrap()
+            .into_iter()
+            .map(|x| x.into())
+            .collect();
     }
 }
 
@@ -463,6 +470,29 @@ impl MyApp {
             (_, _) => column![].into(),
         }
     }
+
+    fn config_controls(&self) -> Element<'_, Message> {
+        let throttle = slider(0.0..=100.0, self.throttle, |x| Message::ThrottleChanged(x));
+        let error_chance = slider(0.0..=100.0, self.error_rate, |x| {
+            Message::ErrorChanceChanged(x)
+        });
+        // radio
+        let paused = radio("Paused", self.paused, Some(false), |x| {
+            Message::PausedChanged
+        });
+        let add_button = Button::new(Text::new("Add Item")).on_press(Message::AddItem);
+
+        column![row![
+            Text::new("Throttle"),
+            throttle,
+            Text::new("Error Chance"),
+            error_chance,
+            paused,
+            add_button
+        ]
+        .spacing(5),]
+        .into()
+    }
 }
 
 //
@@ -476,6 +506,9 @@ enum Message {
     ActionPickChanged(AvalibleActions),
     SliderChanged(f32, SliderChangedAction),
     ConfirmJob,
+    ErrorChanceChanged(f32),
+    ThrottleChanged(f32),
+    PausedChanged,
 }
 impl MyApp {
     fn update_state_on_slider(&mut self, slider: SliderChangedAction, value: f32) {
@@ -550,6 +583,9 @@ impl Sandbox for MyApp {
             panel_state: JobType::Crop(CropJob(0, 0, 0, 0)),
             current_action: AvalibleActions::Crop,
             db: database::common::try_open_connection(),
+            error_rate: 0.0,
+            throttle: 1.0,
+            paused: true,
         }
     }
 
@@ -591,6 +627,15 @@ impl Sandbox for MyApp {
             Message::ConfirmJob => {
                 debug!("Confirming job - {:?}", self.panel_state);
             }
+            Message::ErrorChanceChanged(_) => {
+                debug!("Error chance changed");
+            }
+            Message::ThrottleChanged(_) => {
+                debug!("Throttle changed");
+            }
+            Message::PausedChanged => {
+                debug!("Paused changed");
+            }
         }
     }
 
@@ -606,11 +651,8 @@ impl Sandbox for MyApp {
             .width(Length::Fill)
             .height(Length::Fill);
 
-        let add_button = Button::new(Text::new("Add Item")).on_press(Message::AddItem);
-
         let column = Column::new()
             .push(scrollable)
-            .push(add_button)
             .width(Length::Fill)
             .height(Length::Fill);
 
@@ -628,22 +670,31 @@ impl Sandbox for MyApp {
             .on_press(Message::ConfirmJob)
             .width(Length::Fill);
 
+        let config = self.config_controls();
         // Container with two columns - left with scrollable list of items, right with pick list & buttons
+
+        let layout = row![
+            column![column].width(300),
+            column![pick_list, action_panel, show_job_button]
+                .spacing(10)
+                .width(Length::Fill),
+        ]
+        .spacing(20)
+        .padding(20);
+
         Container::new(
-            row![
-                column![column].width(300),
-                column![pick_list, action_panel, show_job_button]
-                    .spacing(10)
-                    .width(Length::Fill)
-            ]
-            .spacing(20)
-            .padding(20),
-        )
+            Column::new()
+                .push(
+                    Container::new(layout)
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .align_x(Horizontal::Left)
+                        .align_y(Vertical::Bottom)
+                        .padding(20),
+                )
+                .push(Container::new(config).padding(20).align_y(Vertical::Bottom)))
         .width(Length::Fill)
         .height(Length::Fill)
-        .align_x(Horizontal::Left) // Align the content to the start (left) horizontally
-        .align_y(Vertical::Bottom) // Align the content to the end (bottom) vertically
-        .padding(20)
         .into()
     }
 }
