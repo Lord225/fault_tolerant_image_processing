@@ -1,13 +1,16 @@
-use std::error::Error;
+use std::{error::Error, vec};
 use database::repositories::task::InsertableTaskTree;
 
 use clap::Parser;
 
 use engine::run;
+use iced::Renderer;
 use iced::{
     widget::Button, widget::Column, widget::Container, Element, Length, Sandbox, Settings, widget::Text,
 };
+use iced::widget::{scrollable, Scrollable};
 use iced::theme::{self, Theme};
+use iced::alignment::{Horizontal, Vertical};
 
 use nfd::Response;
 use std::path::PathBuf;
@@ -207,12 +210,15 @@ enum ThemeType {
 
 struct MyApp {
     selected_file: Option<PathBuf>,
+    items: Vec<String>,
+    // scroll: scrollable::Scrollbar,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
     FileSelected(Option<PathBuf>),
     OpenButtonPressed,
+    AddItem,
 }
 
 impl Sandbox for MyApp {
@@ -221,6 +227,8 @@ impl Sandbox for MyApp {
     fn new() -> Self {
         MyApp {
             selected_file: None,
+            items: vec![String::from("Hello"), String::from("World")],
+
         }
     }
 
@@ -240,10 +248,34 @@ impl Sandbox for MyApp {
                     self.selected_file = None;
                 }
             }
+            Message::AddItem => {
+                self.items.push(String::from("Item"));
+            }
         }
     }
 
     fn view(self: &MyApp) -> Element<Message> {
+        let content = self
+        .items
+        .iter()
+        .fold(Column::new().spacing(10), |column: Column<'_, Message, Renderer>, item| {
+            column.push(Text::new(item.to_string()))
+        });
+
+        let scrollable = Scrollable::new(content)
+            .width(Length::Fill)
+            .height(Length::Fill);
+
+        let add_button = Button::new(Text::new("Add Item"))
+            .on_press(Message::AddItem);
+
+        let column = Column::new()
+            .push(scrollable)
+            .push(add_button)
+            .width(Length::Fill)
+            .height(Length::Fill);
+
+
         let open_button = Button::new(Text::new("Open"))
             .on_press(Message::OpenButtonPressed);
 
@@ -261,12 +293,16 @@ impl Sandbox for MyApp {
             Column::new()
                 .spacing(20)
                 .push(open_button)
-                .push(content),
+                .push(content)
+                .push(column),
         )
         .width(Length::Fill)
         .height(Length::Fill)
-        .center_x()
-        .center_y()
+        .align_x(Horizontal::Left)  // Align the content to the start (left) horizontally
+        .align_y(Vertical::Bottom)    // Align the content to the end (bottom) vertically
+        .padding(20)  
         .into()
+
+        
     }
 }
