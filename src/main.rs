@@ -1,4 +1,6 @@
-use database::repositories::task::{InsertableTaskTree};
+use database::common::Database;
+use database::repositories::task::{InsertableTaskTree, Task};
+use iced::{Color, Rectangle, Renderer};
 use log::debug;
 use std::{error::Error, vec};
 
@@ -6,11 +8,12 @@ use clap::Parser;
 
 use engine::run;
 use iced::alignment::{Horizontal, Vertical};
-use iced::theme::{Theme};
-use iced::widget::{pick_list, slider, Row, Scrollable};
+use iced::theme::{Palette, Theme};
+use iced::widget::{container, pick_list, slider, Row, Scrollable};
 
 use iced::{
-    widget::column, widget::row, widget::Button, widget::Column, widget::Container, widget::Text, Element, Length, Sandbox, Settings,
+    widget::column, widget::row, widget::Button, widget::Column, widget::Container, widget::Text,
+    Element, Length, Sandbox, Settings,
 };
 
 use nfd::Response;
@@ -77,21 +80,21 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-// stan aplikacji - iced
-#[derive(Default)]
-struct Styling {
-    theme: Theme,
-    input_value: String,
-    slider_value: f32,
-    checkbox_value: bool,
-    toggler_value: bool,
-}
+// // stan aplikacji - iced
+// #[derive(Default)]
+// struct Styling {
+//     theme: Theme,
+//     input_value: String,
+//     slider_value: f32,
+//     checkbox_value: bool,
+//     toggler_value: bool,
+// }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum ThemeType {
-    Light,
-    Dark,
-}
+// #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+// enum ThemeType {
+//     Light,
+//     Dark,
+// }
 
 // Eventy aplikacji - iced
 // #[derive(Debug, Clone)]
@@ -204,29 +207,107 @@ enum ThemeType {
 
 #[derive(Debug, Clone)]
 struct TaskElement {
-    id: u64,
+    id: i64,
     name: String,
+    status: database::schema::Status,
 }
 
 impl TaskElement {
     fn new() -> Self {
         TaskElement {
-            id: (0),
-            name: ("Hello".into()),
+            id: 0,
+            name: "Hello".into(),
+            //random
+            status: match rand::random::<u8>() % 4 {
+                0 => database::schema::Status::Pending,
+                1 => database::schema::Status::Running,
+                2 => database::schema::Status::Failed,
+                3 => database::schema::Status::Completed,
+                _ => database::schema::Status::Pending,
+            },
         }
     }
 }
 
 impl<'a, Message: 'a> From<TaskElement> for iced::Element<'a, Message> {
     fn from(task: TaskElement) -> Self {
-        let TaskElement { id, name } = task;
+        let TaskElement { id, name, status } = task;
 
-        let content = Row::new()
-            .push(Text::new(name).size(20))
-            .push(Text::new(id.to_string()).size(20))
-            .padding(5);
+        // display TaskElement - use diffrent backgorund for diffrent status
+        // grey
+        const PENDING: Color = Color::from_rgb(0.8, 0.8, 0.8);
+        // blue - 104 149 212
+        const RUNNING: Color = Color::from_rgb(0.4, 0.6, 0.8);
+        // red - 204 82 86
+        const FAILED: Color = Color::from_rgb(0.8, 0.3, 0.3);
+        // green 69 214 90
+        const COMPLETED: Color = Color::from_rgb(0.3, 0.8, 0.3);
 
-        Container::new(content).into()
+        let background = match status {
+            database::schema::Status::Pending => PENDING,
+            database::schema::Status::Running => RUNNING,
+            database::schema::Status::Failed => FAILED,
+            database::schema::Status::Completed => COMPLETED,
+        };
+
+        struct RectangleProgram(Color, String);
+        use iced::widget::canvas::Program;
+
+        impl<Message> Program<Message> for RectangleProgram {
+            type State = ();
+
+            fn draw(
+                &self,
+                _: &Self::State,
+                _: &Theme,
+                bounds: Rectangle,
+                _: iced::widget::canvas::Cursor,
+            ) -> Vec<iced::widget::canvas::Geometry> {
+                let rectangle = iced::widget::canvas::Path::rectangle(iced::Point::ORIGIN, bounds.size());
+                let background = iced::widget::canvas::Fill {
+                    style: iced::widget::canvas::Style::Solid(self.0),
+                    ..iced::widget::canvas::Fill::default()
+                };
+
+                let mut frame = iced::widget::canvas::Frame::new(bounds.size());
+                frame.fill(
+                    &rectangle,
+                    background,
+                );
+
+                // draw text
+                let text = iced::widget::canvas::Text {
+                    content: self.1.clone(),
+                    position: iced::Point::new(0.0, 0.0),
+                    size: 20.0,
+                    color: Color::BLACK,
+                    ..iced::widget::canvas::Text::default()
+                };
+
+                frame.fill_text(
+                    text
+                );
+
+                vec![frame.into_geometry()]
+            }
+        }
+
+        let canvas = iced::widget::canvas::Canvas::new(RectangleProgram(background, name))
+            .width(Length::Fill)
+            .height(50); 
+
+
+        Container::new(row![canvas]).into()
+    }
+}
+
+impl From<Task> for TaskElement {
+    fn from(task: Task) -> Self {
+        TaskElement {
+            id: task.task_id,
+            name: format!("{:?}", task),
+            status: task.status,
+        }
     }
 }
 
@@ -288,70 +369,85 @@ impl std::fmt::Display for AvalibleActions {
     }
 }
 
-
 struct MyApp {
     selected_file: Option<PathBuf>,
     items: Vec<TaskElement>,
     panel_state: JobType,
     current_action: AvalibleActions,
+    db: Database,
 }
+
+impl MyApp {
+    fn get_all_tasks(&mut self) {
+        self.items = self.db.get_all_tasks().unwrap().into_iter().map(|x| x.into()).collect();
+    }
+}
+
 //
-// APP layout 
+// APP layout
 //
 impl MyApp {
     fn action_to_panel(&self, action: AvalibleActions) -> Element<'_, Message> {
         match (action, self.panel_state) {
             (AvalibleActions::Crop, JobType::Crop(val)) => {
                 // crop has: x, y, width, height
-                let x = slider(0.0..=100.0,val.0 as f32, |x| {
+                let x = slider(0.0..=100.0, val.0 as f32, |x| {
                     Message::SliderChanged(x, SliderChangedAction::Crop(CropActions::X))
                 });
-                let y = slider(0.0..=100.0,val.1 as f32, |x| {
+                let y = slider(0.0..=100.0, val.1 as f32, |x| {
                     Message::SliderChanged(x, SliderChangedAction::Crop(CropActions::Y))
                 });
-                
-                let width = slider(0.0..=100.0,val.2 as f32, |x| {
+
+                let width = slider(0.0..=100.0, val.2 as f32, |x| {
                     Message::SliderChanged(x, SliderChangedAction::Crop(CropActions::Width))
                 });
-                let height = slider(0.0..=100.0,val.3 as f32, |x| {
+                let height = slider(0.0..=100.0, val.3 as f32, |x| {
                     Message::SliderChanged(x, SliderChangedAction::Crop(CropActions::Height))
                 });
-    
+
                 // put them in rows
-    
-                column![row![Text::new("x"),x, 
-                             Text::new("y"), y].spacing(5), 
-                        row![Text::new("width"), width, 
-                             Text::new("height"), height].spacing(5),].spacing(5).into()
+
+                column![
+                    row![Text::new("x"), x, Text::new("y"), y].spacing(5),
+                    row![Text::new("width"), width, Text::new("height"), height].spacing(5),
+                ]
+                .spacing(5)
+                .into()
             }
             (AvalibleActions::Brighten, JobType::Brightness(x)) => {
                 let value = slider(0.0..=100.0, x.0, |x| {
                     Message::SliderChanged(x, SliderChangedAction::Brighten(BrightenActions::Value))
                 });
-    
-                column![row![Text::new("value"), value].spacing(5),].spacing(5).into()
+
+                column![row![Text::new("value"), value].spacing(5),]
+                    .spacing(5)
+                    .into()
             }
             (AvalibleActions::Resize, JobType::Resize(x)) => {
                 let width = slider(0.0..=100.0, x.0 as f32, |x| {
                     Message::SliderChanged(x, SliderChangedAction::Resize(ResizeActions::Width))
                 });
-    
+
                 let height = slider(0.0..=100.0, x.1 as f32, |x| {
                     Message::SliderChanged(x, SliderChangedAction::Resize(ResizeActions::Height))
                 });
-    
-                column![row![Text::new("width"), width, 
-                             Text::new("height"), height].spacing(5),].spacing(5).into()
+
+                column![row![Text::new("width"), width, Text::new("height"), height].spacing(5),]
+                    .spacing(5)
+                    .into()
             }
             (AvalibleActions::Blur, JobType::Blur(x)) => {
                 let value = slider(0.0..=100.0, x.0, |x| {
                     Message::SliderChanged(x, SliderChangedAction::Blur(BlurActions::Value))
                 });
-    
-                column![row![Text::new("amount"), value].spacing(5),].spacing(5).into()
-            },
+
+                column![row![Text::new("amount"), value].spacing(5),]
+                    .spacing(5)
+                    .into()
+            }
             (AvalibleActions::Input, _) => {
-                let open_button = Button::new(Text::new("Open")).on_press(Message::OpenButtonPressed);
+                let open_button =
+                    Button::new(Text::new("Open")).on_press(Message::OpenButtonPressed);
                 let message = match &self.selected_file {
                     Some(path) => Column::new()
                         .spacing(20)
@@ -362,20 +458,12 @@ impl MyApp {
                         .push(Text::new("No file selected").size(30)),
                 };
 
-                column![
-                    row![
-                        open_button,
-                        message,       
-                    ]
-                ].into()
-                
-            },
-            (_, _) => {column![].into()},
+                column![row![open_button, message,]].into()
+            }
+            (_, _) => column![].into(),
         }
     }
 }
-
-
 
 //
 // STATE UPDATE - MESSAGE HANDLING
@@ -390,7 +478,7 @@ enum Message {
     ConfirmJob,
 }
 impl MyApp {
-        fn update_state_on_slider(&mut self, slider: SliderChangedAction, value: f32) {
+    fn update_state_on_slider(&mut self, slider: SliderChangedAction, value: f32) {
         match slider {
             SliderChangedAction::Crop(a) => {
                 if let JobType::Crop(t) = &mut self.panel_state {
@@ -452,7 +540,6 @@ impl MyApp {
     }
 }
 
-
 impl Sandbox for MyApp {
     type Message = Message;
 
@@ -462,6 +549,7 @@ impl Sandbox for MyApp {
             items: vec![],
             panel_state: JobType::Crop(CropJob(0, 0, 0, 0)),
             current_action: AvalibleActions::Crop,
+            db: database::common::try_open_connection(),
         }
     }
 
@@ -488,7 +576,9 @@ impl Sandbox for MyApp {
                 self.current_action = action;
                 match action {
                     AvalibleActions::Crop => self.panel_state = JobType::Crop(CropJob(0, 0, 0, 0)),
-                    AvalibleActions::Brighten => self.panel_state = JobType::Brightness(BrightnessJob(0.0)),
+                    AvalibleActions::Brighten => {
+                        self.panel_state = JobType::Brightness(BrightnessJob(0.0))
+                    }
                     AvalibleActions::Resize => self.panel_state = JobType::Resize(ResizeJob(0, 0)),
                     AvalibleActions::Blur => self.panel_state = JobType::Blur(BlurJob(0.0)),
                     AvalibleActions::Input => self.panel_state = JobType::Crop(CropJob(0, 0, 0, 0)),
@@ -534,7 +624,7 @@ impl Sandbox for MyApp {
 
         let action_panel = self.action_to_panel(self.current_action);
 
-        let show_job_button = Button::new(Text::new("Show Job"))
+        let show_job_button = Button::new(Text::new("Add task"))
             .on_press(Message::ConfirmJob)
             .width(Length::Fill);
 

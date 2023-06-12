@@ -46,6 +46,12 @@ impl InsertableTaskTree {
     }
 }
 
+impl Task {
+    pub fn id(&self) -> i64 {
+        self.id
+    }
+}
+
 fn get_timestamp() -> i64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -224,7 +230,82 @@ mod task_querry {
     }
 
     pub fn search_for_timeouted(_conn: &mut impl GenericClient, _timeout: std::time::Duration) -> Result<Vec<Task>, ErrorType> {
-        Ok(Vec::new())
+        const QUERRY: &str = r#"
+        WITH latest_tasks AS (                          
+            SELECT t.* FROM tasks t                                                    
+            INNER JOIN (
+                SELECT task_id, MAX(id) AS max_id
+                FROM tasks
+                GROUP BY task_id ) latest ON t.task_id = latest.task_id AND t.id = latest.max_id
+        )
+        SELECT * FROM latest_tasks WHERE status = 'running' and timestamp < $1
+        "#;
+
+        let timeout_time = get_timestamp() - _timeout.as_secs() as i64;
+
+        let rows = _conn.query(QUERRY, &[&timeout_time])?;
+
+        let mut tasks = Vec::new();
+
+        for row in rows {
+            let id: i64 = row.try_get(0)?;
+            let task_id: i64 = row.try_get(1)?;
+            let status: schema::Status = row.try_get(2)?;
+            let timestamp: i64 = row.try_get(3)?;
+            let data: Option<String> = row.try_get(4)?;
+            let params: String = row.try_get(5)?;
+
+            let params: JobType = serde_json::from_str(&params)?;
+
+            tasks.push(Task {
+                id,
+                task_id,
+                parent_tasks: None,
+                status,
+                timestamp,
+                data,
+                params,
+            });
+        }
+
+        Ok(tasks)
+    }
+
+    pub fn get_all_tasks(conn: &mut postgres::Client) -> Result<Vec<Task>, ErrorType> {
+        const QUERY: &str = r#"
+        SELECT t.* FROM tasks t                                                    
+            INNER JOIN (
+                SELECT task_id, MAX(id) AS max_id
+                FROM tasks
+                GROUP BY task_id ) latest ON t.task_id = latest.task_id AND t.id = latest.max_id
+        "#;
+
+        let rows = conn.query(QUERY, &[])?;
+
+        let mut tasks = Vec::new();
+
+        for row in rows {
+            let id: i64 = row.try_get(0)?;
+            let task_id: i64 = row.try_get(1)?;
+            let status: schema::Status = row.try_get(2)?;
+            let timestamp: i64 = row.try_get(3)?;
+            let data: Option<String> = row.try_get(4)?;
+            let params: String = row.try_get(5)?;
+
+            let params: JobType = serde_json::from_str(&params)?;
+
+            tasks.push(Task {
+                id,
+                task_id,
+                parent_tasks: None,
+                status,
+                timestamp,
+                data,
+                params,
+            });
+        }
+
+        Ok(tasks)
     }
 }
 
@@ -288,6 +369,10 @@ impl Database {
 
     pub fn get_parent_tasks(&mut self, task_id: i64) -> Result<Vec<Task>, ErrorType> {
         task_querry::get_parent_tasks(&mut self.conn, task_id)
+    }
+
+    pub fn get_all_tasks(&mut self) -> Result<Vec<Task>, ErrorType> {
+        task_querry::get_all_tasks(&mut self.conn)
     }
 
     pub fn mark_task_as_completed(&mut self, task_id: i64, out: &str) -> Result<(), ErrorType> {

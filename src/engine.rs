@@ -5,7 +5,7 @@ use std::time::Duration;
 use crate::{processing::worker::{worker1::{Worker1, Worker1Job}, worker2::{Worker2, Worker2Job}, WorkerThread}, database::common::{try_open_connection, Database, ErrorType}};
 
 
-const TIMEOUT_DURATION: std::time::Duration = Duration::from_secs(5);
+const TIMEOUT_DURATION: std::time::Duration = Duration::from_secs(3);
 
 struct Engine {
     worker1: WorkerThread<Worker1>,
@@ -77,7 +77,7 @@ fn schedule_thread_body() -> !
 
             match (claiming_result, finding_failed_result) {
                 (EngineState::Idle, EngineState::Idle) => {
-                    thread::sleep(Duration::from_secs(1));
+                    thread::sleep(Duration::from_millis(250));
                     continue;
                 },
                 (_, _) => {
