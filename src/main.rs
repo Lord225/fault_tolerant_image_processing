@@ -1,15 +1,18 @@
 use database::common::Database;
 use database::repositories::task::{InsertableTaskTree, Task};
-use iced::{Color, Rectangle, Renderer};
+use iced::{Application, Color, Command, Rectangle, Subscription};
 use log::debug;
+use processing::worker::WorkerErrorConfig;
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
 use std::{error::Error, vec};
 
 use clap::Parser;
 
-use engine::run;
+use engine::{run, ConfigType};
 use iced::alignment::{Horizontal, Vertical};
-use iced::theme::{Palette, Theme};
-use iced::widget::{container, pick_list, radio, slider, Row, Scrollable};
+use iced::theme::Theme;
+use iced::widget::{pick_list, radio, slider, toggler, Scrollable};
 
 use iced::{
     widget::column, widget::row, widget::Button, widget::Column, widget::Container, widget::Text,
@@ -72,166 +75,33 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         ],
     })?;
 
-    run();
+    let (th, config) = run();
 
     //Styling::run(Settings::default())?;
-    MyApp::run(Settings::default())?;
+    MyApp::run(Settings {
+        flags: config,
+        ..Settings::default()
+    })?;
 
     Ok(())
 }
-
-// // stan aplikacji - iced
-// #[derive(Default)]
-// struct Styling {
-//     theme: Theme,
-//     input_value: String,
-//     slider_value: f32,
-//     checkbox_value: bool,
-//     toggler_value: bool,
-// }
-
-// #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-// enum ThemeType {
-//     Light,
-//     Dark,
-// }
-
-// Eventy aplikacji - iced
-// #[derive(Debug, Clone)]
-// enum Message {
-//     InputChanged(String),
-//     ButtonPressed,
-//     SliderChanged(f32),
-//     CheckboxToggled(bool),
-//     TogglerToggled(bool),
-// }
-
-// impl Sandbox for Styling {
-//     type Message = Message;
-
-//     fn new() -> Self {
-//         Styling::default()
-//     }
-
-//     fn title(&self) -> String {
-//         String::from("Styling - Iced")
-//     }
-
-//     // update stanu aplikacji
-//     fn update(&mut self, message: Message) {
-//         match message {
-//             Message::InputChanged(value) => self.input_value = value,
-//             Message::ButtonPressed => {}
-//             Message::SliderChanged(value) => self.slider_value = value,
-//             Message::CheckboxToggled(value) => self.checkbox_value = value,
-//             Message::TogglerToggled(value) => self.toggler_value = value,
-//         }
-//     }
-
-//     fn view(&self) -> Element<Message> {
-//         // let choose_theme = [ThemeType::Light, ThemeType::Dark]
-//         //     .iter()
-//         //     .fold(
-//         //         column![text("Choose a theme:")].spacing(10),
-//         //         |column, theme| {
-//         //             column.push(radio(
-//         //                 format!("{theme:?}"),
-//         //                 *theme,
-//         //                 Some(match self.theme {
-//         //                     Theme::Light => ThemeType::Light,
-//         //                     Theme::Dark => ThemeType::Dark,
-//         //                     Theme::Custom { .. } => ThemeType::Light,
-//         //                 }),
-//         //                 Message::ThemeChanged,
-//         //             ))
-//         //         },
-//         //     );
-
-//         let text_input = text_input("Type something...", &self.input_value)
-//             .on_input(Message::InputChanged)
-//             .padding(10)
-//             .size(20);
-
-//         let button = button("Submit")
-//             .padding(10)
-//             .on_press(Message::ButtonPressed);
-
-//         let slider = slider(0.0..=100.0, self.slider_value, Message::SliderChanged);
-
-//         let progress_bar = progress_bar(0.0..=100.0, self.slider_value);
-
-//         let scrollable = scrollable(
-//             column!["Scroll me!", vertical_space(800), "You did it!"].width(Length::Fill),
-//         )
-//         .height(100);
-
-//         let checkbox = checkbox("Check me!", self.checkbox_value, Message::CheckboxToggled);
-
-//         let toggler = toggler(
-//             String::from("Toggle me!"),
-//             self.toggler_value,
-//             Message::TogglerToggled,
-//         )
-//         .width(Length::Shrink)
-//         .spacing(10);
-
-//         let content = column![
-//             row![text_input, button].spacing(10),
-//             slider,
-//             progress_bar,
-//             row![
-//                 scrollable,
-//                 vertical_rule(38),
-//                 column![checkbox, toggler].spacing(20)
-//             ]
-//             .spacing(10)
-//             .height(100)
-//             .align_items(Alignment::Center),
-//         ]
-//         .spacing(20)
-//         .padding(20)
-//         .max_width(600);
-
-//         container(content)
-//             .width(Length::Fill)
-//             .height(Length::Fill)
-//             .center_x()
-//             .center_y()
-//             .into()
-//     }
-
-//     fn theme(&self) -> Theme {
-//         self.theme.clone()
-//     }
-// }
 
 #[derive(Debug, Clone)]
 struct TaskElement {
     id: i64,
     name: String,
+    job_type: AvalibleActions,
     status: database::schema::Status,
-}
-
-impl TaskElement {
-    fn new() -> Self {
-        TaskElement {
-            id: 0,
-            name: "Hello".into(),
-            //random
-            status: match rand::random::<u8>() % 4 {
-                0 => database::schema::Status::Pending,
-                1 => database::schema::Status::Running,
-                2 => database::schema::Status::Failed,
-                3 => database::schema::Status::Completed,
-                _ => database::schema::Status::Pending,
-            },
-        }
-    }
 }
 
 impl<'a, Message: 'a> From<TaskElement> for iced::Element<'a, Message> {
     fn from(task: TaskElement) -> Self {
-        let TaskElement { id, name, status } = task;
+        let TaskElement {
+            id: _,
+            name,
+            status,
+            job_type,
+        } = task;
 
         // display TaskElement - use diffrent backgorund for diffrent status
         // grey
@@ -301,9 +171,18 @@ impl<'a, Message: 'a> From<TaskElement> for iced::Element<'a, Message> {
 
 impl From<Task> for TaskElement {
     fn from(task: Task) -> Self {
+        let name = format!("{:?} {:?}", task.task_id, task.params);
         TaskElement {
             id: task.task_id,
-            name: format!("{:?}", task),
+            name: name,
+            job_type: match task.params {
+                JobType::Crop(_) => AvalibleActions::Crop,
+                JobType::Brightness(_) => AvalibleActions::Brighten,
+                JobType::Resize(_) => AvalibleActions::Resize,
+                JobType::Blur(_) => AvalibleActions::Blur,
+                JobType::Overlay(_) => AvalibleActions::Crop, //TODO
+                JobType::Input => AvalibleActions::Input,
+            },
             status: task.status,
         }
     }
@@ -371,15 +250,15 @@ struct MyApp {
     selected_file: Option<PathBuf>,
     items: Vec<TaskElement>,
     panel_state: JobType,
+    choosed_input_state: Vec<Option<i64>>,
     current_action: AvalibleActions,
-    paused: bool,
-    throttle: f32,
-    error_rate: f32,
     db: Database,
+    config: ConfigType,
+    last_config: WorkerErrorConfig,
 }
 
 impl MyApp {
-    fn get_all_tasks(&mut self) {
+    fn fetch_tasks(&mut self) {
         self.items = self
             .db
             .get_all_tasks()
@@ -395,6 +274,27 @@ impl MyApp {
 //
 impl MyApp {
     fn action_to_panel(&self, action: AvalibleActions) -> Element<'_, Message> {
+        fn gen_input_list(n: i64, app: &MyApp) -> Element<'_, Message> {
+            let mut list = Column::new();
+            
+            // push pick list with avalible (Completed) tasks
+            let completed_tasks = app.items
+                                                  .iter()
+                                                  .map(|x| x.id).collect::<Vec<_>>(); 
+
+            for i in 0..n {
+                let mut pick_list = iced::widget::PickList::new(
+                    completed_tasks.clone(),
+                    app.choosed_input_state.get(i as usize).unwrap_or(&None).clone(),
+                    move |x| Message::InputChoosed(x, i),
+                );
+                pick_list = pick_list.width(Length::Fill);
+                list = list.push(pick_list);
+            }
+
+            list.into()
+            
+        }
         match (action, self.panel_state) {
             (AvalibleActions::Crop, JobType::Crop(val)) => {
                 // crop has: x, y, width, height
@@ -417,6 +317,7 @@ impl MyApp {
                 column![
                     row![Text::new("x"), x, Text::new("y"), y].spacing(5),
                     row![Text::new("width"), width, Text::new("height"), height].spacing(5),
+                    row![gen_input_list(1, self)],
                 ]
                 .spacing(5)
                 .into()
@@ -426,7 +327,8 @@ impl MyApp {
                     Message::SliderChanged(x, SliderChangedAction::Brighten(BrightenActions::Value))
                 });
 
-                column![row![Text::new("value"), value].spacing(5),]
+                column![row![Text::new("value"), value].spacing(5),
+                        row![gen_input_list(1, self)],]
                     .spacing(5)
                     .into()
             }
@@ -439,7 +341,7 @@ impl MyApp {
                     Message::SliderChanged(x, SliderChangedAction::Resize(ResizeActions::Height))
                 });
 
-                column![row![Text::new("width"), width, Text::new("height"), height].spacing(5),]
+                column![row![Text::new("width"), width, Text::new("height"), height].spacing(5),row![gen_input_list(1, self)]]
                     .spacing(5)
                     .into()
             }
@@ -448,7 +350,7 @@ impl MyApp {
                     Message::SliderChanged(x, SliderChangedAction::Blur(BlurActions::Value))
                 });
 
-                column![row![Text::new("amount"), value].spacing(5),]
+                column![row![Text::new("amount"), value].spacing(5),row![gen_input_list(1, self)]]
                     .spacing(5)
                     .into()
             }
@@ -472,13 +374,17 @@ impl MyApp {
     }
 
     fn config_controls(&self) -> Element<'_, Message> {
-        let throttle = slider(0.0..=100.0, self.throttle, |x| Message::ThrottleChanged(x));
-        let error_chance = slider(0.0..=100.0, self.error_rate, |x| {
-            Message::ErrorChanceChanged(x)
+        let config = self.last_config.clone();
+
+        let throttle = slider(0.0..=100.0, config.throttle.as_secs_f32() * 100.0, |x| {
+            Message::ThrottleChanged(x / 100.0 * 1.0)
+        });
+        let error_chance = slider(0.0..=100.0, config.random_error_chance * 100.0, |x| {
+            Message::ErrorChanceChanged(x / 100.0)
         });
         // radio
-        let paused = radio("Paused", self.paused, Some(false), |x| {
-            Message::PausedChanged
+        let paused = toggler(Some("Paused".into()), config.paused, |x| {
+            Message::PausedChanged(x)
         });
         let add_button = Button::new(Text::new("Add Item")).on_press(Message::AddItem);
 
@@ -508,8 +414,11 @@ enum Message {
     ConfirmJob,
     ErrorChanceChanged(f32),
     ThrottleChanged(f32),
-    PausedChanged,
+    PausedChanged(bool),
+    PeriodicEvent,
+    InputChoosed(i64, i64),
 }
+
 impl MyApp {
     fn update_state_on_slider(&mut self, slider: SliderChangedAction, value: f32) {
         match slider {
@@ -573,27 +482,40 @@ impl MyApp {
     }
 }
 
-impl Sandbox for MyApp {
+impl Application for MyApp {
     type Message = Message;
+    type Flags = ConfigType;
+    type Executor = iced::executor::Default;
+    type Theme = Theme;
 
-    fn new() -> Self {
-        MyApp {
-            selected_file: None,
-            items: vec![],
-            panel_state: JobType::Crop(CropJob(0, 0, 0, 0)),
-            current_action: AvalibleActions::Crop,
-            db: database::common::try_open_connection(),
-            error_rate: 0.0,
-            throttle: 1.0,
-            paused: true,
-        }
+    fn new(settings: Self::Flags) -> (Self, Command<Self::Message>) {
+        let last_config = settings.read().unwrap().clone();
+        (
+            MyApp {
+                selected_file: None,
+                items: vec![],
+                choosed_input_state: vec![],
+                panel_state: JobType::Crop(CropJob(0, 0, 0, 0)),
+                current_action: AvalibleActions::Crop,
+                db: database::common::try_open_connection(),
+                config: settings,
+                last_config,
+            },
+            Command::none(),
+        )
     }
 
     fn title(&self) -> String {
-        String::from("File Chooser")
+        String::from("Image Processor")
     }
 
-    fn update(&mut self, message: Message) {
+    fn update(&mut self, message: Message) -> Command<Message> {
+        if let Ok(c) = self.config.try_read() {
+            self.last_config = c.clone();
+        }
+
+        let mut commands = Command::none();
+
         match message {
             Message::FileSelected(path) => {
                 self.selected_file = path;
@@ -605,9 +527,7 @@ impl Sandbox for MyApp {
                     self.selected_file = None;
                 }
             }
-            Message::AddItem => {
-                self.items.push(TaskElement::new());
-            }
+            Message::AddItem => self.fetch_tasks(),
             Message::ActionPickChanged(action) => {
                 self.current_action = action;
                 match action {
@@ -627,16 +547,52 @@ impl Sandbox for MyApp {
             Message::ConfirmJob => {
                 debug!("Confirming job - {:?}", self.panel_state);
             }
-            Message::ErrorChanceChanged(_) => {
-                debug!("Error chance changed");
+            Message::ErrorChanceChanged(x) => {
+                // update error chance
+                self.last_config.random_error_chance = x;
+                if let Ok(mut c) = self.config.try_write() {
+                    *c = self.last_config;
+                } else {
+                    commands = Command::perform(async {}, move |_| Message::ErrorChanceChanged(x));
+                }
             }
-            Message::ThrottleChanged(_) => {
-                debug!("Throttle changed");
+            Message::ThrottleChanged(x) => {
+                let duration = Duration::from_secs_f32(x);
+                self.last_config.throttle = duration;
+                if let Ok(mut c) = self.config.try_write() {
+                    *c = self.last_config;
+                } else {
+                    commands = Command::perform(async {}, move |_| Message::ThrottleChanged(x));
+                }
             }
-            Message::PausedChanged => {
-                debug!("Paused changed");
+            Message::PausedChanged(value) => {
+                self.last_config.paused = value;
+                if let Ok(mut c) = self.config.try_write() {
+                    *c = self.last_config;
+                } else {
+                    commands = Command::perform(async {}, move |_| Message::PausedChanged(value));
+                }
+            }
+            Message::PeriodicEvent => self.fetch_tasks(),
+            Message::InputChoosed(id, index) => {
+                if let Some(state) = self.choosed_input_state.get_mut(index as usize) {
+                    *state = Some(id);
+                    debug!("Input choosed {:?}", self.choosed_input_state);
+                } else {
+                    for _ in self.choosed_input_state.len()..=index as usize {
+                        self.choosed_input_state.push(None);
+                    }
+                    commands = Command::perform(async {}, move |_| Message::InputChoosed(id, index));
+                }
             }
         }
+
+        commands
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        use iced::time;
+        time::every(Duration::from_millis(250)).map(|_| Message::PeriodicEvent)
     }
 
     fn view(self: &MyApp) -> Element<Message> {
@@ -692,7 +648,8 @@ impl Sandbox for MyApp {
                         .align_y(Vertical::Bottom)
                         .padding(20),
                 )
-                .push(Container::new(config).padding(20).align_y(Vertical::Bottom)))
+                .push(Container::new(config).padding(20).align_y(Vertical::Bottom)),
+        )
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
