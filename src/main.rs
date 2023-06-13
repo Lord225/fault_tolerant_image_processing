@@ -3,7 +3,7 @@ use database::repositories::task::{InsertableTaskTree, Task, InsertableTask};
 use iced::{Application, Color, Command, Rectangle, Subscription};
 use log::{debug, warn};
 use processing::worker::WorkerErrorConfig;
-use std::sync::{Arc, RwLock};
+
 use std::time::Duration;
 use std::{error::Error, vec};
 
@@ -12,11 +12,11 @@ use clap::Parser;
 use engine::{run, ConfigType};
 use iced::alignment::{Horizontal, Vertical};
 use iced::theme::Theme;
-use iced::widget::{pick_list, radio, slider, toggler, Scrollable};
+use iced::widget::{pick_list, slider, toggler, Scrollable};
 
 use iced::{
     widget::column, widget::row, widget::Button, widget::Column, widget::Container, widget::Text,
-    Element, Length, Sandbox, Settings,
+    Element, Length, Settings,
 };
 
 use nfd::Response;
@@ -75,7 +75,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         ],
     })?;
 
-    let (th, config) = run();
+    let (_th, config) = run();
 
     //Styling::run(Settings::default())?;
     MyApp::run(Settings {
@@ -90,7 +90,6 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 struct TaskElement {
     id: i64,
     name: String,
-    job_type: AvalibleActions,
     status: database::schema::Status,
 }
 
@@ -100,7 +99,6 @@ impl<'a, Message: 'a> From<TaskElement> for iced::Element<'a, Message> {
             id: _,
             name,
             status,
-            job_type,
         } = task;
 
         // display TaskElement - use diffrent backgorund for diffrent status
@@ -174,15 +172,7 @@ impl From<Task> for TaskElement {
         let name = format!("{:?} {:?}", task.task_id, task.params);
         TaskElement {
             id: task.task_id,
-            name: name,
-            job_type: match task.params {
-                JobType::Crop(_) => AvalibleActions::Crop,
-                JobType::Brightness(_) => AvalibleActions::Brighten,
-                JobType::Resize(_) => AvalibleActions::Resize,
-                JobType::Blur(_) => AvalibleActions::Blur,
-                JobType::Overlay(_) => AvalibleActions::Crop, //TODO
-                JobType::Input => AvalibleActions::Input,
-            },
+            name,
             status: task.status,
         }
     }
@@ -295,7 +285,7 @@ impl MyApp {
             for i in 0..n {
                 let mut pick_list = iced::widget::PickList::new(
                     completed_tasks.clone(),
-                    app.choosed_input_state.get(i as usize).unwrap_or(&None).clone(),
+                    *app.choosed_input_state.get(i as usize).unwrap_or(&None),
                     move |x| Message::InputChoosed(x, i),
                 );
                 pick_list = pick_list.width(Length::Fill);
@@ -400,7 +390,7 @@ impl MyApp {
 
     fn config_controls(&self) -> Element<'_, Message> {
         const THROTTLE_RANGE: f32 = 2.0;
-        let config = self.last_config.clone();
+        let config = self.last_config;
 
         let throttle = slider(0.0..=100.0, config.throttle.as_secs_f32() * 100.0 / THROTTLE_RANGE, |x| {
             Message::ThrottleChanged(x / 100.0 * THROTTLE_RANGE)
@@ -432,7 +422,6 @@ impl MyApp {
 //
 #[derive(Debug, Clone)]
 enum Message {
-    FileSelected(Option<PathBuf>),
     OpenButtonPressed,
     AddItem,
     ActionPickChanged(AvalibleActions),
@@ -529,7 +518,7 @@ impl Application for MyApp {
     type Theme = Theme;
 
     fn new(settings: Self::Flags) -> (Self, Command<Self::Message>) {
-        let last_config = settings.read().unwrap().clone();
+        let last_config = *settings.read().unwrap();
         (
             MyApp {
                 selected_file: None,
@@ -551,15 +540,12 @@ impl Application for MyApp {
 
     fn update(&mut self, message: Message) -> Command<Message> {
         if let Ok(c) = self.config.try_read() {
-            self.last_config = c.clone();
+            self.last_config = *c;
         }
 
         let mut commands = Command::none();
 
         match message {
-            Message::FileSelected(path) => {
-                self.selected_file = path;
-            }
             Message::OpenButtonPressed => {
                 if let Ok(Response::Okay(file_path)) = nfd::open_file_dialog(None, None) {
                     self.selected_file = Some(PathBuf::from(file_path));
@@ -594,7 +580,7 @@ impl Application for MyApp {
                     AvalibleActions::Input => {
                         if let Some(path) = &self.selected_file {
                             let path = path.to_str().unwrap();
-                            self.db.insert_new_task(&InsertableTask::input(&path)).unwrap();
+                            self.db.insert_new_task(&InsertableTask::input(path)).unwrap();
                         } else {
                             warn!("No input file selected");
                         }
@@ -605,7 +591,7 @@ impl Application for MyApp {
                         if input_count < inputs.len() {
                             commands = Command::perform(async {}, move |_| Message::ConfirmJob);
                         } else {
-                            let inputs = inputs[0..input_count].iter().map(|x| *x).collect::<Option<Vec<_>>>();
+                            let inputs = inputs[0..input_count].iter().copied().collect::<Option<Vec<_>>>();
 
                             if let Some(inputs) = inputs {
                                 let task = InsertableTask {

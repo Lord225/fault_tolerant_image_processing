@@ -80,7 +80,7 @@ where
     T: TryFrom<JobType>,
 {
     pub fn from_task(task: Task) -> Result<Self, Vec<InvalidTask>> {
-        fn load_images_from_task_parents(parents: &Vec<Task>) -> Vec<LoadDataResult> {
+        fn load_images_from_task_parents(parents: &[Task]) -> Vec<LoadDataResult> {
             parents
                 .iter()
                 .map(|task| {
