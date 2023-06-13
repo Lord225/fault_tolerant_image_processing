@@ -72,7 +72,6 @@ impl DerefMut for Database {
 pub enum ErrorType {
     DatabaseError(String),
     DatabaseConnectionError(String),
-    NotFound,
     WorkerThreadFailed,
     SerializationError,
     TaskNotRunnable(i64),
@@ -98,7 +97,6 @@ impl Display for ErrorType {
         match self {
             ErrorType::DatabaseError(message) => write!(f, "Database error: {}", message),
             ErrorType::DatabaseConnectionError(message) => write!(f, "Database connection error {}", message),
-            ErrorType::NotFound => write!(f, "Entry Not Found"),
             ErrorType::Other => write!(f, "Other Logic Error"),
             ErrorType::SerializationError => write!(f, "Serialization Error"),
             ErrorType::TaskNotRunnable(task_id) => write!(f, "Task {} is not runnable", task_id),

@@ -1,15 +1,16 @@
 use log::{info, error, warn};
 
-use std::thread;
+use std::sync::Arc;
+use std::{thread, sync::RwLock};
 use std::time::Duration;
-use crate::{processing::worker::{worker1::{Worker1, Worker1Job}, worker2::{Worker2, Worker2Job}, WorkerThread}, database::common::{try_open_connection, Database, ErrorType}};
+use crate::{processing::worker::{worker1::{Worker1, Worker1Job}, worker2::{Worker2, Worker2Job}, WorkerThread, WorkerErrorConfig}, database::common::{try_open_connection, Database, ErrorType}};
+const TIMEOUT_DURATION: std::time::Duration = Duration::from_secs(1);
 
-
-const TIMEOUT_DURATION: std::time::Duration = Duration::from_secs(3);
-
+pub type ConfigType = Arc<RwLock<WorkerErrorConfig>>;
 struct Engine {
     worker1: WorkerThread<Worker1>,
     worker2: WorkerThread<Worker2>,
+    config: ConfigType,
 }
 
 enum EngineState {
@@ -17,7 +18,7 @@ enum EngineState {
     Idle,
 }
 
-fn schedule_thread_body() -> !
+fn schedule_thread_body(config: ConfigType) -> !
 {    
     
     fn check_if_workers_are_workin(engine: &mut Engine) {
@@ -67,7 +68,7 @@ fn schedule_thread_body() -> !
         })
     }
 
-    fn body(db: &mut Database, engine: &mut Engine) -> Result<(), ErrorType> {
+    fn body(db: &mut Database, engine: &mut Engine, config: &ConfigType) -> Result<(), ErrorType> {
         loop {
             let claiming_result = claim_tasks(db, engine)?;
             
@@ -81,6 +82,7 @@ fn schedule_thread_body() -> !
                     continue;
                 },
                 (_, _) => {
+                    thread::sleep(Duration::from_millis(config.read().unwrap().throttle.as_millis() as u64));
                     continue;
                 },
             }
@@ -88,13 +90,13 @@ fn schedule_thread_body() -> !
         }
     }
 
-    let mut engine = Engine::new();
+    let mut engine = Engine::new(config.clone());
     let mut db =  try_open_connection();
     
     engine.start_failed_workers();
 
     loop {        
-        match body(&mut db, &mut engine) {
+        match body(&mut db, &mut engine, &config) {
             Ok(()) => continue,
             Err(e) => {
                 error!("{}", e);
@@ -117,20 +119,23 @@ fn schedule_thread_body() -> !
     }
 }
 
-pub fn run() -> std::thread::JoinHandle<()> {
-    std::thread::spawn(|| schedule_thread_body())
+pub fn run() -> (std::thread::JoinHandle<()>, ConfigType) {
+    let config = Arc::new(RwLock::new(WorkerErrorConfig::default()));
+    let config_clone = config.clone();
+    (std::thread::spawn(|| schedule_thread_body(config)), config_clone)
 }
 
 impl Engine {
-    pub fn new() -> Self {
+    pub fn new(config: ConfigType) -> Self {
         Self {
             worker1: WorkerThread::new(),
             worker2: WorkerThread::new(),
+            config,
         }
     }
 
     pub fn start_failed_workers(&mut self){
-        self.worker1.restore_thread(|| (Worker1::new(), try_open_connection()));
-        self.worker2.restore_thread(|| (Worker2::new(), try_open_connection()));
+        self.worker1.restore_thread(|| (Worker1::new(), try_open_connection(), self.config.clone()));
+        self.worker2.restore_thread(|| (Worker2::new(), try_open_connection(), self.config.clone()));
     }
 }

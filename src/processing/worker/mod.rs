@@ -20,17 +20,23 @@ use crate::{
         repositories::task::Task,
     },
     processing::data_loader::save_image_with_path,
-    temp::from_temp,
+    temp::from_temp, engine::ConfigType,
 };
 
 use super::job::{Job, JobType};
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct WorkerErrorConfig {
     pub throttle: Duration,
     pub random_error_chance: f32,
     pub random_not_save_chance: f32,
     pub paused: bool,
+}
+
+impl Default for WorkerErrorConfig{
+    fn default() -> Self {
+        Self { throttle: Duration::from_millis(200), random_error_chance: 0.0, random_not_save_chance: 0.0, paused: true }
+    }
 }
 
 pub trait ImageWorker {
@@ -43,7 +49,6 @@ pub struct WorkerThread<Worker: ImageWorker + Send> {
     thread: Option<(
         std::thread::JoinHandle<()>,
         mpsc::Sender<Task>,
-        Arc<RwLock<WorkerErrorConfig>>,
     )>,
     phantom: PhantomData<Worker>,
 }
@@ -57,24 +62,17 @@ impl<Worker: ImageWorker + Send + 'static> WorkerThread<Worker> {
         }
     }
 
-    pub fn start(&mut self, worker: Worker, journal: Database) {
-        let (tx, rx) = mpsc::channel();
-        let config = Arc::new(RwLock::new(WorkerErrorConfig {
-            throttle: Duration::from_millis(500),
-            random_error_chance: 0.75,
-            random_not_save_chance: 0.0,
-            paused: false,
-        }));
-        let config_thread = config.clone();   
+    pub fn start(&mut self, worker: Worker, journal: Database, config: ConfigType) {
+        let (tx, rx) = mpsc::channel();  
         let thread = std::thread::spawn(move || {
-            Self::thread_body(worker, journal, rx, config_thread);
+            Self::thread_body(worker, journal, rx, config);
         });        
 
-        self.thread = Some((thread, tx, config));
+        self.thread = Some((thread, tx));
     }
 
     pub fn send_task(&mut self, task: Task) -> Result<(), ErrorType> {
-        if let Some((_, tx, _)) = &self.thread {
+        if let Some((_, tx)) = &self.thread {
             match tx.send(task) {
                 Ok(_) => Ok(()),
                 Err(_) => Err(ErrorType::WorkerThreadFailed),
@@ -85,7 +83,7 @@ impl<Worker: ImageWorker + Send + 'static> WorkerThread<Worker> {
     }
 
     pub fn thread_died(&self) -> bool {
-        if let Some((t, _, _)) = &self.thread {
+        if let Some((t, _)) = &self.thread {
             t.is_finished()
         } else {
             true
@@ -94,17 +92,17 @@ impl<Worker: ImageWorker + Send + 'static> WorkerThread<Worker> {
 
     pub fn restore_thread<F>(&mut self, f: F)
     where
-        F: FnOnce() -> (Worker, Database),
+        F: FnOnce() -> (Worker, Database, ConfigType),
     {
         // check if thread is alive
         if self.thread.is_none() {
-            let (worker, journal) = f();
+            let (worker, journal, config) = f();
             info!("Starting worker thread");
-            self.start(worker, journal);
+            self.start(worker, journal, config);
         } else if self.thread_died() && self.thread_died() {
-            let (worker, journal) = f();
+            let (worker, journal, config) = f();
             warn!("Thread died. Restarting...");
-            self.start(worker, journal);
+            self.start(worker, journal, config);
         }
     }
 
@@ -112,7 +110,7 @@ impl<Worker: ImageWorker + Send + 'static> WorkerThread<Worker> {
         mut worker: Worker,
         mut journal: Database,
         channel: mpsc::Receiver<Task>,
-        config: Arc<RwLock<WorkerErrorConfig>>,
+        config: ConfigType,
     ) {
         loop {
             let task = channel.recv().unwrap();
@@ -166,6 +164,7 @@ impl<Worker: ImageWorker + Send + 'static> WorkerThread<Worker> {
             }
 
             // sleep
+            info!("throttle {:?}", config.read().unwrap().throttle);
             std::thread::sleep(config.read().unwrap().throttle);
         }
     }

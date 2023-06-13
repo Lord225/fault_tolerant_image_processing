@@ -423,10 +423,12 @@ impl Database {
         task_querry::get_runnable_tasks(&mut self.conn)
     }
 
+    #[allow(dead_code)]
     pub fn get_last_task_state(&mut self, task_id: i64) -> Result<Task, ErrorType> {
         task_querry::get_last_task_state(&mut self.conn, task_id)
     }
 
+    #[allow(dead_code)]
     pub fn get_parent_tasks(&mut self, task_id: i64) -> Result<Vec<Task>, ErrorType> {
         task_querry::get_parent_tasks(&mut self.conn, task_id)
     }
@@ -514,6 +516,7 @@ impl Database {
         Ok(tasks)
     }
 
+    #[allow(dead_code)]
     pub fn claim_all_runnable_tasks<WorkerJobType: TryFrom<JobType> + Copy>(
         &mut self,
     ) -> Result<Vec<Task>, ErrorType> {
