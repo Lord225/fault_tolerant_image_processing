@@ -46,6 +46,14 @@ impl InsertableTaskTree {
     }
 }
 
+pub struct InsertableTask {
+    pub parent_tasks: Vec<i64>,
+    pub status: schema::Status,
+    pub data: Option<String>,
+    pub params: JobType,
+}
+
+
 impl Task {
     pub fn id(&self) -> i64 {
         self.id
