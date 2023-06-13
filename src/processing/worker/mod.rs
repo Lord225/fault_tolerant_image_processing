@@ -163,7 +163,6 @@ impl<Worker: ImageWorker + Send + 'static> WorkerThread<Worker> {
             }
 
             // sleep
-            info!("throttle {:?}", config.read().unwrap().throttle);
             std::thread::sleep(config.read().unwrap().throttle);
         }
     }
