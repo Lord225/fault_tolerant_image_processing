@@ -35,10 +35,28 @@ pub struct InsertableTaskTree {
     pub params: JobType,
 }
 
+pub struct InsertableTask {
+    pub parent_ids: Vec<i64>,
+    pub status: schema::Status,
+    pub data: Option<String>,
+    pub params: JobType,
+}
+
 impl InsertableTaskTree {
     pub fn input(data: &str) -> Self {
         Self {
             parent_tasks: vec![],
+            status: schema::Status::Completed,
+            data: Some(data.to_string()),
+            params: JobType::input(),
+        }
+    }
+}
+
+impl InsertableTask {
+    pub fn input(data: &str) -> Self {
+        Self {
+            parent_ids: vec![],
             status: schema::Status::Completed,
             data: Some(data.to_string()),
             params: JobType::input(),
@@ -345,6 +363,48 @@ impl Database {
             // insert parent relations
             for parent_id in parent_ids {
                 tx.execute(QUERY2, &[&task_id, &parent_id])?;
+            }
+
+            Ok(task_id)
+        }
+
+        let timestamp = get_timestamp();
+
+        let mut tx = self.conn.transaction()?;
+        insert_task(&mut tx, task, timestamp)?;
+        tx.commit()?;
+
+        Ok(())
+    }
+
+    pub fn insert_new_task(&mut self, task: &InsertableTask) -> Result<(), ErrorType> {
+        const QUERY: &str = "INSERT INTO tasks (task_id, status, timestamp, data, params) VALUES ($1, $2, $3, $4, $5)";
+        const QUERY2: &str = "INSERT INTO parents (task_id, parent_id) VALUES ($1, $2)";
+
+        fn insert_task(
+            tx: &mut postgres::Transaction,
+            task: &InsertableTask,
+            timestamp: i64,
+        ) -> Result<i64, ErrorType> {
+            // get next free task_id
+            let task_id = tx.query_one("SELECT nextval('task_id_seq')", &[])?;
+            let task_id: i64 = task_id.try_get(0)?;
+
+            // insert task
+            tx.execute(
+                QUERY,
+                &[
+                    &task_id,
+                    &task.status,
+                    &timestamp,
+                    &task.data,
+                    &serde_json::to_string(&task.params)?,
+                ],
+            )?;
+
+            // insert parent relations
+            for parent_id in &task.parent_ids {
+                tx.execute(QUERY2, &[&task_id, parent_id])?;
             }
 
             Ok(task_id)
