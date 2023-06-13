@@ -64,11 +64,6 @@ impl InsertableTask {
     }
 }
 
-impl Task {
-    pub fn id(&self) -> i64 {
-        self.id
-    }
-}
 
 fn get_timestamp() -> i64 {
     SystemTime::now()
@@ -419,6 +414,7 @@ impl Database {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn get_runnable_tasks(&mut self) -> Result<Vec<Task>, ErrorType> {
         task_querry::get_runnable_tasks(&mut self.conn)
     }

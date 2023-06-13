@@ -6,8 +6,7 @@ use log::{error, info, warn};
 use std::{
     marker::PhantomData,
     sync::{
-        mpsc::{self},
-        Arc, RwLock,
+        mpsc::{self}
     },
     time::Duration,
 };

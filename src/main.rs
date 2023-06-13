@@ -238,6 +238,7 @@ static ALL_ACTIONS: &[AvalibleActions] = &[
     AvalibleActions::Brighten,
     AvalibleActions::Resize,
     AvalibleActions::Blur,
+    AvalibleActions::Overlay,
     AvalibleActions::Input,
 ];
 
@@ -601,23 +602,26 @@ impl Application for MyApp {
                     _ => {
                         let input_count = panel_state.input_count();
 
-                        if input_count != inputs.len() {
+                        if input_count < inputs.len() {
                             commands = Command::perform(async {}, move |_| Message::ConfirmJob);
                         } else {
                             let inputs = inputs[0..input_count].iter().map(|x| *x).collect::<Option<Vec<_>>>();
 
-                            let task = InsertableTask {
-                                parent_ids: inputs.unwrap(),
-                                status: database::schema::Status::Pending,
-                                data: None,
-                                params: *panel_state,
-                            };
+                            if let Some(inputs) = inputs {
+                                let task = InsertableTask {
+                                    parent_ids: inputs,
+                                    status: database::schema::Status::Pending,
+                                    data: None,
+                                    params: *panel_state,
+                                };
 
-                            self.db.insert_new_task(&task).unwrap();
+                                self.db.insert_new_task(&task).unwrap();
+                            } else {
+                                warn!("No input file selected");
+                            }
                         }
                     }
                 }
-
             }
             Message::ErrorChanceChanged(x) => {
                 // update error chance
