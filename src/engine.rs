@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::{thread, sync::RwLock};
 use std::time::Duration;
 use crate::{processing::worker::{worker1::{Worker1, Worker1Job}, worker2::{Worker2, Worker2Job}, WorkerThread, WorkerErrorConfig}, database::common::{try_open_connection, Database, ErrorType}};
-const TIMEOUT_DURATION: std::time::Duration = Duration::from_secs(1);
+const TIMEOUT_DURATION: std::time::Duration = Duration::from_secs(2);
 
 pub type ConfigType = Arc<RwLock<WorkerErrorConfig>>;
 struct Engine {

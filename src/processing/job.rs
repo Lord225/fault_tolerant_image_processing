@@ -22,28 +22,41 @@ pub enum JobType {
 }
 
 impl JobType {
+    #[allow(dead_code)]
     pub fn new_resize(width: u32, height: u32) -> Self {
         JobType::Resize(ResizeJob(width, height))
     }
-
+    #[allow(dead_code)]
     pub fn new_blur(blur: f32) -> Self {
         JobType::Blur(BlurJob(blur))
     }
-
+    #[allow(dead_code)]
     pub fn new_brightness(brightness: f32) -> Self {
         JobType::Brightness(BrightnessJob(brightness))
     }
-
+    #[allow(dead_code)]
     pub fn new_overlay(x: u32, y: u32) -> Self {
         JobType::Overlay(OverlayJob(x, y))
     }
 
+    #[allow(dead_code)]
     pub fn new_crop(x: u32, y: u32, width: u32, height: u32) -> Self {
         JobType::Crop(CropJob(x, y, width, height))
     }
-
+    #[allow(dead_code)]
     pub fn input() -> Self {
         JobType::Input
+    }
+
+    pub fn input_count(&self) -> usize {
+        match self {
+            JobType::Resize(_) => 1,
+            JobType::Crop(_) => 1,
+            JobType::Blur(_) => 1,
+            JobType::Brightness(_) => 1,
+            JobType::Overlay(_) => 2,
+            JobType::Input => 0,
+        }
     }
 }
 
