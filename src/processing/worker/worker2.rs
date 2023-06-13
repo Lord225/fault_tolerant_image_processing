@@ -27,10 +27,29 @@ impl TryFrom<job::JobType> for Worker2Job {
 impl ImageWorker for Worker2 {
     type WorkerJob = Worker2Job;
 
-    fn process(&mut self, _job: job::Job<Self::WorkerJob>) -> Result<RgbImage, ()> {
+    fn process(&mut self, job: job::Job<Self::WorkerJob>) -> Result<RgbImage, ()> {
         debug!("Worker1::process()");
 
-        todo!()
+        match job {
+            job::Job { task: Worker2Job::Brightness(_params), data } => {
+                debug!("Brightness {:?}", _params);
+                
+                let img = data.first().unwrap();
+
+                Ok(image::imageops::brighten(img, 
+                                          _params.0 as i32,))
+            },
+            job::Job { task: Worker2Job::Blur(_params), mut data } => {
+                debug!("Blur {:?}", _params);
+
+                // get the first image as &mut 
+                let img = data.first_mut().unwrap(); 
+                
+                Ok(
+                    image::imageops::blur(img, _params.0)
+                )
+            },
+        }
     }
 }
 
