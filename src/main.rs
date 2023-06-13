@@ -1,7 +1,7 @@
 use database::common::Database;
-use database::repositories::task::{InsertableTaskTree, Task};
+use database::repositories::task::{InsertableTaskTree, Task, InsertableTask};
 use iced::{Application, Color, Command, Rectangle, Subscription};
-use log::debug;
+use log::{debug, warn};
 use processing::worker::WorkerErrorConfig;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -28,7 +28,7 @@ mod processing;
 mod temp;
 mod tests_common;
 
-use processing::job::{self, BlurJob, BrightnessJob, CropJob, JobType, ResizeJob};
+use processing::job::{self, BlurJob, BrightnessJob, CropJob, JobType, ResizeJob, OverlayJob};
 
 use crate::temp::from_temp;
 
@@ -195,6 +195,7 @@ enum AvalibleActions {
     Brighten,
     Resize,
     Blur,
+    Overlay,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CropActions {
@@ -218,11 +219,18 @@ enum BlurActions {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OverlayActions {
+    X,
+    Y,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SliderChangedAction {
     Crop(CropActions),
     Brighten(BrightenActions),
     Resize(ResizeActions),
     Blur(BlurActions),
+    Overlay(OverlayActions),
 }
 
 static ALL_ACTIONS: &[AvalibleActions] = &[
@@ -242,6 +250,7 @@ impl std::fmt::Display for AvalibleActions {
             AvalibleActions::Resize => write!(f, "Resize"),
             AvalibleActions::Blur => write!(f, "Blur"),
             AvalibleActions::Input => write!(f, "Input"),
+            AvalibleActions::Overlay => write!(f, "Overlay"),
         }
     }
 }
@@ -353,7 +362,22 @@ impl MyApp {
                 column![row![Text::new("amount"), value].spacing(5),row![gen_input_list(1, self)]]
                     .spacing(5)
                     .into()
-            }
+            },
+            (AvalibleActions::Overlay, JobType::Overlay(job)) => {
+                let x = slider(0.0..=100.0, job.0 as f32, |x| {
+                    Message::SliderChanged(x, SliderChangedAction::Overlay(OverlayActions::X))
+                });
+
+                let y = slider(0.0..=100.0, job.1 as f32, |x| {
+                    Message::SliderChanged(x, SliderChangedAction::Overlay(OverlayActions::Y))
+                });
+
+                
+
+                column![row![Text::new("x"), x, Text::new("y"), y].spacing(5),row![gen_input_list(2, self)]]
+                    .spacing(5)
+                    .into()
+            },
             (AvalibleActions::Input, _) => {
                 let open_button =
                     Button::new(Text::new("Open")).on_press(Message::OpenButtonPressed);
@@ -374,10 +398,11 @@ impl MyApp {
     }
 
     fn config_controls(&self) -> Element<'_, Message> {
+        const THROTTLE_RANGE: f32 = 2.0;
         let config = self.last_config.clone();
 
-        let throttle = slider(0.0..=100.0, config.throttle.as_secs_f32() * 100.0, |x| {
-            Message::ThrottleChanged(x / 100.0 * 1.0)
+        let throttle = slider(0.0..=100.0, config.throttle.as_secs_f32() * 100.0 / THROTTLE_RANGE, |x| {
+            Message::ThrottleChanged(x / 100.0 * THROTTLE_RANGE)
         });
         let error_chance = slider(0.0..=100.0, config.random_error_chance * 100.0, |x| {
             Message::ErrorChanceChanged(x / 100.0)
@@ -478,6 +503,20 @@ impl MyApp {
                     self.panel_state = JobType::Blur(BlurJob(0.0));
                 }
             }
+            SliderChangedAction::Overlay(a) => {
+                if let JobType::Overlay(t) = &mut self.panel_state {
+                    match a {
+                        OverlayActions::X => {
+                            t.0 = value as u32;
+                        }
+                        OverlayActions::Y => {
+                            t.1 = value as u32;
+                        }
+                    }
+                } else {
+                    self.panel_state = JobType::Overlay(OverlayJob(0, 0));
+                }
+            }
         }
     }
 }
@@ -538,6 +577,7 @@ impl Application for MyApp {
                     AvalibleActions::Resize => self.panel_state = JobType::Resize(ResizeJob(0, 0)),
                     AvalibleActions::Blur => self.panel_state = JobType::Blur(BlurJob(0.0)),
                     AvalibleActions::Input => self.panel_state = JobType::Crop(CropJob(0, 0, 0, 0)),
+                    AvalibleActions::Overlay => self.panel_state = JobType::Overlay(OverlayJob(0, 0)),
                 }
             }
             Message::SliderChanged(value, w) => {
@@ -545,7 +585,39 @@ impl Application for MyApp {
                 debug!("Slider {:?} changed to {:?} ", w, value);
             }
             Message::ConfirmJob => {
-                debug!("Confirming job - {:?}", self.panel_state);
+                let panel_state = &self.panel_state;
+                let action = &self.current_action;
+                let inputs = &self.choosed_input_state;
+                
+                match action {
+                    AvalibleActions::Input => {
+                        if let Some(path) = &self.selected_file {
+                            let path = path.to_str().unwrap();
+                            self.db.insert_new_task(&InsertableTask::input(&path)).unwrap();
+                        } else {
+                            warn!("No input file selected");
+                        }
+                    }
+                    _ => {
+                        let input_count = panel_state.input_count();
+
+                        if input_count != inputs.len() {
+                            commands = Command::perform(async {}, move |_| Message::ConfirmJob);
+                        } else {
+                            let inputs = inputs[0..input_count].iter().map(|x| *x).collect::<Option<Vec<_>>>();
+
+                            let task = InsertableTask {
+                                parent_ids: inputs.unwrap(),
+                                status: database::schema::Status::Pending,
+                                data: None,
+                                params: *panel_state,
+                            };
+
+                            self.db.insert_new_task(&task).unwrap();
+                        }
+                    }
+                }
+
             }
             Message::ErrorChanceChanged(x) => {
                 // update error chance
