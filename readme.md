@@ -1,3 +1,35 @@
+# Tolerate random errors in multithreaded image procesing pipeline using journoal recovery 
+This App uses database to track pipeline progression and reverts state if any error occurs - including - worker thread panic, missing files, job timeouts.
+
+Tasks are tree-like structures that produce one output and can take multiple inputs (or none for input leafs). 
+```
+Input1 Input2
+  |      |
+ Crop    |
+  \      /
+   \    /
+  Overlay
+```
+Output of each node is stored in temp folder.
+Progress of each job is tracked using database and can be resumed, revert or retired at any point.   
+
+## Tracking convention
+Each job is tracked using an entry in `tasks` table. Additionally there is an table for storing parent tasks to track if task can be started.
+```
+| ID | task_id | status  | timestamp | data_path? | job_params
+```
+```
+| task_id | parent_id |
+```
+
+Everything is builded with fault tolerance in mind.
+
+# Workers
+Engine uses two woerkers - each can perform diffrent operations like Crop, Resize or Brightness. 
+
+# Frontend
+Fontend app were builded to better visualize processes. It is built with `iced`. And shows progress of jobs, allows you to add new jobs to tree and alter simulation settings (like throttle and error chance). 
+
 # Notatki
 
 Task -> Resize -> blur -> Crop
